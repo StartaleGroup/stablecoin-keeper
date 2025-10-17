@@ -1,0 +1,19 @@
+[chain]
+chain_id = 1946
+rpc_url = "${SONEIUM_RPC_URL}"
+private_key = "${SONEIUM_PRIVATE_KEY}"
+
+[contracts]
+usdsc_address = "${SONEIUM_USDSC_ADDRESS}"
+reward_redistributor_address = "${SONEIUM_REWARD_REDISTRIBUTOR_ADDRESS}"
+earn_vault_address = "${SONEIUM_EARN_VAULT_ADDRESS}"
+susdsc_vault_address = "${SONEIUM_SUSDSC_VAULT_ADDRESS}"
+
+[thresholds]
+min_yield_threshold = "${MIN_YIELD_THRESHOLD}"
+
+[retry]
+max_attempts = 3
+base_delay_seconds = 5
+max_delay_seconds = 300
+backoff_multiplier = 2.0

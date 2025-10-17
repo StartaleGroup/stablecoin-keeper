@@ -1,0 +1,18 @@
+[chain]
+chain_id = 1
+rpc_url = "${ETH_RPC_URL}"
+rpc_backup_url = "${ETH_RPC_BACKUP_URL}"
+private_key = "${ETH_PRIVATE_KEY}"
+
+[contracts]
+usdsc_address = "${ETH_USDSC_ADDRESS}"
+recipient_address = "${ETH_RECIPIENT_ADDRESS}"
+
+[thresholds]
+min_yield_threshold = "${MIN_YIELD_THRESHOLD}"
+
+[retry]
+max_attempts = 3
+base_delay_seconds = 5
+max_delay_seconds = 300
+backoff_multiplier = 2.0

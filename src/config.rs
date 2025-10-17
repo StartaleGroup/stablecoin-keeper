@@ -1,23 +1,73 @@
+use serde::{Deserialize, Serialize};
 use anyhow::Result;
+use std::fs;
 use std::env;
+use regex::Regex;
 
-pub struct Config {
-    pub database_url: String,
-    pub rpc_url: String,
-    pub server_port: u16,
-    // TODO: Add more config fields as needed
+#[derive(Debug, Deserialize, Serialize)]
+pub struct ChainConfig {
+    pub chain: ChainSettings,
+    pub contracts: ContractAddresses,
+    pub thresholds: Thresholds,
+    pub retry: RetrySettings,
 }
 
-impl Config {
-    pub fn load() -> Result<Self> {
-        Ok(Config {
-            database_url: env::var("DATABASE_URL")
-                .unwrap_or_else(|_| "postgresql://localhost/stablecoin".to_string()),
-            rpc_url: env::var("RPC_URL")
-                .unwrap_or_else(|_| "http://localhost:8545".to_string()),
-            server_port: env::var("PORT")
-                .unwrap_or_else(|_| "3000".to_string())
-                .parse()?,
-        })
+#[derive(Debug, Deserialize, Serialize)]
+pub struct ChainSettings {
+    pub chain_id: u64,
+    pub rpc_url: String,
+    pub rpc_backup_url: Option<String>,
+    pub private_key: String,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct ContractAddresses {
+    pub usdsc_address: String,
+    pub recipient_address: Option<String>,
+    pub reward_redistributor_address: Option<String>,
+    pub earn_vault_address: Option<String>,
+    pub susdsc_vault_address: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct Thresholds {
+    pub min_yield_threshold: String,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct RetrySettings {
+    pub max_attempts: u32,
+    pub base_delay_seconds: u64,
+    pub max_delay_seconds: u64,
+    pub backoff_multiplier: f64,
+}
+
+impl ChainConfig {
+    pub fn load(path: &str) -> Result<Self> {
+        // Load .env file if it exists
+        dotenv::dotenv().ok();
+        
+        let content = fs::read_to_string(path)?;
+        
+        // Simple environment variable substitution
+        let content = Self::substitute_env_vars(content)?;
+        
+        let config: ChainConfig = toml::from_str(&content)?;
+        Ok(config)
+    }
+    
+    fn substitute_env_vars(content: String) -> Result<String> {
+        let re = Regex::new(r"\$\{([A-Z_][A-Z0-9_]*)\}")?;
+        let mut result = content.clone();
+        
+        for cap in re.captures_iter(&content) {
+            let var_name = &cap[1];
+            if let Ok(value) = env::var(var_name) {
+                let placeholder = cap[0].to_string();
+                result = result.replace(&placeholder, &value);
+            }
+        }
+        
+        Ok(result)
     }
 }
