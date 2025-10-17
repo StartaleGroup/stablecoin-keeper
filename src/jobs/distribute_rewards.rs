@@ -1,8 +1,11 @@
 use crate::config::ChainConfig;
 use crate::blockchain::BlockchainClient;
 use crate::contracts::reward_redistributor::RewardRedistributorContract;
+use crate::contracts::usdsc::USDSCContract;
 use crate::retry::{execute_with_retry, RetryConfig};
+use alloy::primitives::U256;
 use anyhow::Result;
+use std::str::FromStr;
 use std::time::Duration;
 
 pub struct DistributeRewardsJob {
@@ -46,6 +49,33 @@ impl DistributeRewardsJob {
         
         let block_number = client.get_block_number().await?;
         println!("📦 Current block: {}", block_number);
+        
+        // First check USDSC yield (reusing logic from claim_yield.rs)
+        let usdsc_address = BlockchainClient::parse_address(&self.config.contracts.usdsc_address)?;
+        let usdsc_contract = USDSCContract::new(usdsc_address, client.provider());
+        
+        // Check pending yield with retry
+        let pending_yield = execute_with_retry(
+            || {
+                let contract = usdsc_contract.clone();
+                Box::pin(async move {
+                    contract.get_pending_yield().await
+                })
+            },
+            &retry_config,
+            "Get pending yield",
+        ).await?;
+        println!("💰 Pending yield: {}", pending_yield);
+        
+        // Check if yield is above threshold
+        let min_threshold = U256::from_str(&self.config.thresholds.min_yield_threshold)?;
+        
+        if pending_yield < min_threshold {
+            println!("⏳ Yield below threshold ({} < {}), skipping distribution", pending_yield, min_threshold);
+            return Ok(());
+        }
+        
+        println!("💰 Yield above threshold ({} >= {}), proceeding with distribution...", pending_yield, min_threshold);
         
         if let Some(redistributor_addr) = &self.config.contracts.reward_redistributor_address {
             // Create RewardRedistributor contract instance

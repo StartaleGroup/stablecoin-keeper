@@ -83,7 +83,7 @@ Use Kubernetes CronJobs or traditional cron:
 
 ### Job Types
 - **ClaimYield** - Claims USDSC yield to recipient (Ethereum → EOA, Soneium → RewardRedistributor)
-- **DistributeRewards** - Triggers yield distribution to vaults (Soneium only)
+- **DistributeRewards** - Checks USDSC yield threshold, then triggers distribution to vaults (Soneium only)
 
 ## 🔐 Security
 
