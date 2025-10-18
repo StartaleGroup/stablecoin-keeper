@@ -51,7 +51,7 @@ impl ClaimYieldJob {
         
         // Create USDSC contract instance
         let usdsc_address = BlockchainClient::parse_address(&self.config.contracts.usdsc_address)?;
-        let usdsc_contract = USDSCContract::new(usdsc_address, client.provider());
+        let usdsc_contract = USDSCContract::new(Address::from_str(&self.config.contracts.usdsc_address)?, client.provider());
         
         // Check pending yield with retry
         let pending_yield = execute_with_retry(
