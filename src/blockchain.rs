@@ -1,8 +1,6 @@
 use alloy::network::Ethereum;
 use alloy::primitives::Address;
-use alloy::providers::{Provider, RootProvider};
-use alloy::rpc::client::RpcClient;
-use alloy::transports::http::Http;
+use alloy::providers::{Provider, ProviderBuilder};
 use alloy::signers::Signer;
 use alloy::signers::local::PrivateKeySigner;
 use anyhow::Result;
@@ -10,10 +8,8 @@ use std::str::FromStr;
 use std::sync::Arc;
 use url::Url;
 
-pub type HttpProvider = RootProvider<Ethereum>;
-
 pub struct BlockchainClient {
-    provider: Arc<HttpProvider>,
+    provider: Arc<dyn Provider<Ethereum>>,
 }
 
 impl BlockchainClient {
@@ -21,13 +17,15 @@ impl BlockchainClient {
         println!("🔗 Connecting to RPC: {}", rpc_url);
         
         let url = Url::parse(rpc_url)?;
-        let transport = Http::new(url);
-        let rpc_client = RpcClient::new(transport, true);
-        let provider = RootProvider::new(rpc_client);
         
         // Create signer
         let signer = PrivateKeySigner::from_str(private_key)?;
         let signer = signer.with_chain_id(Some(expected_chain_id));
+        
+        // Create provider with signer (like vault-relayer)
+        let provider = ProviderBuilder::new()
+            .wallet(signer.clone())
+            .connect_http(url);
         
         // Test connection and verify chain ID
         let chain_id = provider.get_chain_id().await?;
@@ -46,7 +44,7 @@ impl BlockchainClient {
         })
     }
     
-    pub fn provider(&self) -> Arc<HttpProvider> {
+    pub fn provider(&self) -> Arc<dyn Provider<Ethereum>> {
         self.provider.clone()
     }
     
