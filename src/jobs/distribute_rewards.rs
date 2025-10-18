@@ -3,6 +3,7 @@ use crate::blockchain::BlockchainClient;
 use crate::contracts::reward_redistributor::RewardRedistributorContract;
 use crate::contracts::usdsc::USDSCContract;
 use crate::retry::{execute_with_retry, RetryConfig};
+use crate::transaction_monitor::{TransactionMonitor, TransactionStatus};
 use alloy::primitives::U256;
 use anyhow::Result;
 use std::str::FromStr;
@@ -20,12 +21,7 @@ impl DistributeRewardsJob {
     
     pub async fn execute(&self) -> Result<()> {
         println!("🔍 Distribute Rewards Job Starting...");
-        println!("   Chain ID: {}", self.config.chain.chain_id);
-        println!("   RPC URL: {}", self.config.chain.rpc_url);
-        println!("   RewardRedistributor: {:?}", self.config.contracts.reward_redistributor_address);
-        println!("   Dry Run: {}", self.dry_run);
         
-        // Create retry configuration
         let retry_config = RetryConfig::new(
             self.config.retry.max_attempts,
             Duration::from_secs(self.config.retry.base_delay_seconds),
@@ -39,9 +35,9 @@ impl DistributeRewardsJob {
                 let rpc_url = self.config.chain.rpc_url.clone();
                 let chain_id = self.config.chain.chain_id;
                 let private_key = self.config.chain.private_key.clone();
-                Box::pin(async move {
+                async move {
                     BlockchainClient::new(&rpc_url, chain_id, &private_key).await
-                })
+                }
             },
             &retry_config,
             "Blockchain connection",
@@ -54,17 +50,8 @@ impl DistributeRewardsJob {
         let usdsc_address = BlockchainClient::parse_address(&self.config.contracts.usdsc_address)?;
         let usdsc_contract = USDSCContract::new(usdsc_address, client.provider());
         
-        // Check pending yield with retry
-        let pending_yield = execute_with_retry(
-            || {
-                let contract = usdsc_contract.clone();
-                Box::pin(async move {
-                    contract.get_pending_yield().await
-                })
-            },
-            &retry_config,
-            "Get pending yield",
-        ).await?;
+        // Check pending yield (no retry for lightweight read operations)
+        let pending_yield = usdsc_contract.get_pending_yield().await?;
         println!("💰 Pending yield: {}", pending_yield);
         
         // Check if yield is above threshold
@@ -86,9 +73,9 @@ impl DistributeRewardsJob {
             let preview = execute_with_retry(
                 || {
                     let contract = redistributor_contract.clone();
-                    Box::pin(async move {
+                    async move {
                         contract.preview_distribute().await
-                    })
+                    }
                 },
                 &retry_config,
                 "Preview distribution",
@@ -110,14 +97,40 @@ impl DistributeRewardsJob {
             let tx_hash = execute_with_retry(
                 || {
                     let contract = redistributor_contract.clone();
-                    Box::pin(async move {
+                    async move {
                         contract.distribute().await
-                    })
+                    }
                 },
                 &retry_config,
                 "Distribute transaction",
             ).await?;
             println!("✅ Distribute transaction sent: {:?}", tx_hash);
+            
+            // Monitor transaction until confirmation
+            let monitor = TransactionMonitor::new(
+                client.provider(),
+                Duration::from_secs(300), // 5 minutes max wait
+                Duration::from_secs(5),    // Poll every 5 seconds
+            );
+            
+            let receipt = monitor.monitor_transaction(tx_hash).await?;
+            match receipt.status {
+                TransactionStatus::Success => {
+                    println!("🎉 Distribute transaction confirmed in block {}", receipt.block_number);
+                    println!("⛽ Gas used: {}", receipt.gas_used);
+                }
+                TransactionStatus::Failed => {
+                    println!("❌ Distribute transaction failed");
+                    return Err(anyhow::anyhow!("Transaction failed"));
+                }
+                TransactionStatus::Timeout => {
+                    println!("⏰ Distribute transaction monitoring timeout");
+                    return Err(anyhow::anyhow!("Transaction monitoring timeout"));
+                }
+                TransactionStatus::Pending => {
+                    println!("⏳ Distribute transaction still pending");
+                }
+            }
         } else {
             println!("⚠️ No RewardRedistributor address configured");
         }

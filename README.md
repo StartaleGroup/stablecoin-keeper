@@ -59,6 +59,9 @@ cargo run -- claim-yield --chain-id=1 --config=ethereum.toml
 # Distribute rewards on Soneium  
 cargo run -- distribute-rewards --chain-id=1946 --config=soneium.toml
 
+# Override private key from CLI (more secure)
+cargo run -- claim-yield --chain-id=1 --config=ethereum.toml --private-key=0x...
+
 # Dry run mode (no transactions)
 cargo run -- claim-yield --chain-id=1 --config=ethereum.toml --dry-run
 ```
@@ -88,9 +91,11 @@ Use Kubernetes CronJobs or traditional cron:
 ## 🔐 Security
 
 - **Environment Variables** - All private keys stored in `.env` (never committed)
+- **CLI Private Key Override** - Pass private keys via CLI for enhanced security
 - **Separate Wallets** - Different keys for Ethereum and Soneium
 - **Dry Run Mode** - Test operations without sending transactions
 - **Chain ID Validation** - Prevents accidental cross-chain operations
+- **Transaction Monitoring** - Real-time transaction status tracking with timeout handling
 
 ## 📁 Project Structure
 

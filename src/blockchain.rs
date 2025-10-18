@@ -18,16 +18,13 @@ impl BlockchainClient {
         
         let url = Url::parse(rpc_url)?;
         
-        // Create signer
         let signer = PrivateKeySigner::from_str(private_key)?;
         let signer = signer.with_chain_id(Some(expected_chain_id));
         
-        // Create provider with signer (like vault-relayer)
         let provider = ProviderBuilder::new()
             .wallet(signer.clone())
             .connect_http(url);
         
-        // Test connection and verify chain ID
         let chain_id = provider.get_chain_id().await?;
         if chain_id != expected_chain_id {
             return Err(anyhow::anyhow!(

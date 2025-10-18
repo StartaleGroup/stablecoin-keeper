@@ -32,13 +32,14 @@ impl RetryConfig {
     }
 }
 
-pub async fn execute_with_retry<F, T, E>(
+pub async fn execute_with_retry<F, Fut, T, E>(
     operation: F,
     retry_config: &RetryConfig,
     operation_name: &str,
 ) -> Result<T>
 where
-    F: Fn() -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<T, E>> + Send>>,
+    F: Fn() -> Fut,
+    Fut: std::future::Future<Output = Result<T, E>> + Send,
     E: std::fmt::Display + Send + Sync + 'static,
 {
     let mut attempt = 1;
@@ -49,9 +50,7 @@ where
         
         match operation().await {
             Ok(result) => {
-                if attempt > 1 {
-                    println!("✅ {} succeeded on attempt {}", operation_name, attempt);
-                }
+                println!("✅ {} succeeded on attempt {}", operation_name, attempt);
                 return Ok(result);
             }
             Err(e) => {
@@ -98,13 +97,13 @@ mod tests {
         let result = execute_with_retry(
             || {
                 let count = call_count.fetch_add(1, Ordering::SeqCst);
-                Box::pin(async move {
+                async move {
                     if count == 0 {
                         Ok("success")
                     } else {
                         Err("unexpected call")
                     }
-                })
+                }
             },
             &config,
             "test_operation",
@@ -123,13 +122,13 @@ mod tests {
         let result = execute_with_retry(
             || {
                 let count = call_count.fetch_add(1, Ordering::SeqCst);
-                Box::pin(async move {
+                async move {
                     if count == 0 {
                         Err("first attempt fails")
                     } else {
                         Ok("success")
                     }
-                })
+                }
             },
             &config,
             "test_operation",
@@ -148,9 +147,9 @@ mod tests {
         let result = execute_with_retry(
             || {
                 call_count.fetch_add(1, Ordering::SeqCst);
-                Box::pin(async move {
+                async move {
                     Err::<&str, anyhow::Error>(anyhow::anyhow!("always fails"))
-                })
+                }
             },
             &config,
             "test_operation",

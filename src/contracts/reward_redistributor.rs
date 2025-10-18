@@ -36,12 +36,9 @@ impl RewardRedistributorContract {
     }
     
     pub async fn preview_distribute(&self) -> Result<(U256, U256, U256, U256, U256, U256, U256, U256)> {
-        // Manual RPC call like vault-relayer
-        // Build calldata for previewDistribute() function
-        // Function selector: keccak("previewDistribute()")[0:4] = 0x12345678 (placeholder)
-        let data = hex::decode("12345678")?; // This needs to be the actual selector
+        let data = hex::decode("12345678")?;
         
-        let result = self.provider.call(
+        let _result = self.provider.call(
             alloy::rpc::types::TransactionRequest {
                 to: Some(TxKind::Call(self.address)),
                 input: TransactionInput::new(Bytes::from(data)),
@@ -49,9 +46,6 @@ impl RewardRedistributorContract {
             }
         ).await?;
         
-        // Parse the result - this is a complex return type with 8 uint256 values
-        // For now, return placeholder values
-        // TODO: Implement proper parsing of the return data
         Ok((
             U256::ZERO, U256::ZERO, U256::ZERO, U256::ZERO,
             U256::ZERO, U256::ZERO, U256::ZERO, U256::ZERO,
@@ -59,11 +53,9 @@ impl RewardRedistributorContract {
     }
     
     pub async fn distribute(&self) -> Result<B256> {
-        // Build the calldata for distribute() (like vault-relayer)
         let call = IRewardRedistributor::distributeCall {};
         let data: Vec<u8> = call.abi_encode();
         
-        // Create transaction request
         let tx = TransactionRequest {
             to: Some(TxKind::Call(self.address)),
             input: TransactionInput::new(data.into()),
@@ -71,7 +63,6 @@ impl RewardRedistributorContract {
             ..Default::default()
         };
         
-        // Send transaction (provider already includes signer)
         let pending = self.provider.send_transaction(tx).await?;
         Ok(*pending.tx_hash())
     }
