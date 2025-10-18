@@ -8,6 +8,7 @@ use tokio::time::sleep;
 
 #[derive(Debug, Clone)]
 pub struct TransactionReceipt {
+    #[allow(dead_code)] // Used in tests and public API
     pub hash: B256,
     pub block_number: u64,
     pub gas_used: U256,
@@ -16,7 +17,6 @@ pub struct TransactionReceipt {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum TransactionStatus {
-    Pending,
     Success,
     Failed,
     Timeout,
@@ -72,6 +72,8 @@ impl TransactionMonitor {
                 }
                 Ok(None) => {
                     println!("⏳ Transaction pending, waiting...");
+                    // Transaction is still pending, continue monitoring
+                    // Note: We don't return Pending status here as we continue monitoring
                 }
                 Err(e) => {
                     println!("❌ Error checking transaction status: {}", e);

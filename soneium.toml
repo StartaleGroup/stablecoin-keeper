@@ -1,5 +1,5 @@
 [chain]
-chain_id = 1946
+chain_id = 1868
 rpc_url = "${SONEIUM_RPC_URL}"
 private_key = "${SONEIUM_PRIVATE_KEY}"
 

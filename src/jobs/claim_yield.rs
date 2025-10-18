@@ -3,7 +3,7 @@ use crate::blockchain::BlockchainClient;
 use crate::contracts::usdsc::USDSCContract;
 use crate::retry::{execute_with_retry, RetryConfig};
 use crate::transaction_monitor::{TransactionMonitor, TransactionStatus};
-use alloy::primitives::U256;
+use alloy::primitives::{Address, U256};
 use anyhow::Result;
 use std::str::FromStr;
 use std::time::Duration;
@@ -41,7 +41,6 @@ impl ClaimYieldJob {
             "Blockchain connection",
         ).await?;
         
-        let usdsc_address = BlockchainClient::parse_address(&self.config.contracts.usdsc_address)?;
         let usdsc_contract = USDSCContract::new(Address::from_str(&self.config.contracts.usdsc_address)?, client.provider());
         
         let pending_yield = usdsc_contract.get_pending_yield().await?;
@@ -88,9 +87,6 @@ impl ClaimYieldJob {
                 TransactionStatus::Timeout => {
                     println!("⏰ Claim transaction monitoring timeout");
                     return Err(anyhow::anyhow!("Transaction monitoring timeout"));
-                }
-                TransactionStatus::Pending => {
-                    println!("⏳ Claim transaction still pending");
                 }
             }
         } else {
