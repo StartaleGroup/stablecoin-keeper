@@ -4,7 +4,6 @@ use alloy::network::Ethereum;
 use anyhow::Result;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::time::sleep;
 
 #[derive(Debug, Clone)]
 pub struct TransactionReceipt {
@@ -61,47 +60,49 @@ impl TransactionMonitor {
     pub async fn monitor_transaction(&self, tx_hash: B256) -> Result<TransactionReceipt> {
         println!("🔍 Monitoring transaction: {:?}", tx_hash);
         
-        let start_time = std::time::Instant::now();
+        let start_time = tokio::time::Instant::now();
+        let overall_deadline = start_time + self.max_wait_time;
+        let mut ticker = tokio::time::interval(self.poll_interval);
         
         loop {
-            if start_time.elapsed() > self.max_wait_time {
-                println!("⏰ Transaction monitoring timeout after {:?}", self.max_wait_time);
-                return Ok(TransactionReceipt {
-                    hash: tx_hash,
-                    block_number: self.timeout_block_number,
-                    gas_used: self.timeout_gas_used,
-                    status: TransactionStatus::Timeout,
-                });
-            }
-            
-            match self.provider.get_transaction_receipt(tx_hash).await {
-                Ok(Some(receipt)) => {
-                    let status = if receipt.status() {
-                        TransactionStatus::Success
-                    } else {
-                        TransactionStatus::Failed
-                    };
-                    
-                    println!("✅ Transaction confirmed: {:?} (Status: {:?})", tx_hash, status);
-                    
+            tokio::select! {
+                _ = tokio::time::sleep_until(overall_deadline) => {
+                    println!("⏰ Transaction monitoring timeout after {:?}", self.max_wait_time);
                     return Ok(TransactionReceipt {
                         hash: tx_hash,
-                        block_number: receipt.block_number.unwrap_or(0),
-                        gas_used: U256::from(receipt.gas_used),
-                        status,
+                        block_number: self.timeout_block_number,
+                        gas_used: self.timeout_gas_used,
+                        status: TransactionStatus::Timeout,
                     });
                 }
-                Ok(None) => {
-                    println!("⏳ Transaction pending, waiting...");
-                    // Transaction is still pending, continue monitoring
-                    // Note: We don't return Pending status here as we continue monitoring
-                }
-                Err(e) => {
-                    println!("❌ Error checking transaction status: {}", e);
+                _ = ticker.tick() => {
+                    // Check transaction status
+                    match self.provider.get_transaction_receipt(tx_hash).await {
+                        Ok(Some(receipt)) => {
+                            let status = if receipt.status() {
+                                TransactionStatus::Success
+                            } else {
+                                TransactionStatus::Failed
+                            };
+                            
+                            println!("✅ Transaction confirmed: {:?} (Status: {:?})", tx_hash, status);
+                            
+                            return Ok(TransactionReceipt {
+                                hash: tx_hash,
+                                block_number: receipt.block_number.unwrap_or(0),
+                                gas_used: U256::from(receipt.gas_used),
+                                status,
+                            });
+                        }
+                        Ok(None) => {
+                            println!("⏳ Transaction pending, waiting...");
+                        }
+                        Err(e) => {
+                            println!("❌ Error checking transaction status: {}", e);
+                        }
+                    }
                 }
             }
-            
-            sleep(self.poll_interval).await;
         }
     }
     
