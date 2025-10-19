@@ -26,14 +26,35 @@ pub struct TransactionMonitor {
     provider: Arc<dyn Provider<Ethereum>>,
     max_wait_time: Duration,
     poll_interval: Duration,
+    timeout_block_number: u64,
+    timeout_gas_used: U256,
 }
 
 impl TransactionMonitor {
+    #[allow(dead_code)] // Kept for backward compatibility
     pub fn new(provider: Arc<dyn Provider<Ethereum>>, max_wait_time: Duration, poll_interval: Duration) -> Self {
         Self {
             provider,
             max_wait_time,
             poll_interval,
+            timeout_block_number: 0,
+            timeout_gas_used: U256::ZERO,
+        }
+    }
+    
+    pub fn new_with_timeout_values(
+        provider: Arc<dyn Provider<Ethereum>>, 
+        max_wait_time: Duration, 
+        poll_interval: Duration,
+        timeout_block_number: u64,
+        timeout_gas_used: U256,
+    ) -> Self {
+        Self {
+            provider,
+            max_wait_time,
+            poll_interval,
+            timeout_block_number,
+            timeout_gas_used,
         }
     }
 
@@ -47,8 +68,8 @@ impl TransactionMonitor {
                 println!("⏰ Transaction monitoring timeout after {:?}", self.max_wait_time);
                 return Ok(TransactionReceipt {
                     hash: tx_hash,
-                    block_number: 0,
-                    gas_used: U256::ZERO,
+                    block_number: self.timeout_block_number,
+                    gas_used: self.timeout_gas_used,
                     status: TransactionStatus::Timeout,
                 });
             }

@@ -10,6 +10,8 @@ pub struct ChainConfig {
     pub contracts: ContractAddresses,
     pub thresholds: Thresholds,
     pub retry: RetrySettings,
+    pub monitoring: MonitoringSettings,
+    pub transaction: TransactionSettings,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -40,6 +42,19 @@ pub struct RetrySettings {
     pub base_delay_seconds: u64,
     pub max_delay_seconds: u64,
     pub backoff_multiplier: f64,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct MonitoringSettings {
+    pub transaction_timeout_seconds: u64,
+    pub poll_interval_seconds: u64,
+    pub timeout_block_number: u64,
+    pub timeout_gas_used: String,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct TransactionSettings {
+    pub value_wei: String,
 }
 
 impl ChainConfig {

@@ -135,6 +135,15 @@ max_attempts = 3
 base_delay_seconds = 5
 max_delay_seconds = 300
 backoff_multiplier = 2.0
+
+[monitoring]
+transaction_timeout_seconds = 300
+poll_interval_seconds = 5
+timeout_block_number = 0
+timeout_gas_used = "0"
+
+[transaction]
+value_wei = "0"
 "#;
     
     // Write config to temporary file
@@ -181,6 +190,15 @@ max_attempts = 3
 base_delay_seconds = 5
 max_delay_seconds = 300
 backoff_multiplier = 2.0
+
+[monitoring]
+transaction_timeout_seconds = 300
+poll_interval_seconds = 5
+timeout_block_number = 0
+timeout_gas_used = "0"
+
+[transaction]
+value_wei = "0"
 "#;
     
     let temp_file = std::env::temp_dir().join("test_env_config.toml");
@@ -238,6 +256,15 @@ max_attempts = 3
 base_delay_seconds = 5
 max_delay_seconds = 300
 backoff_multiplier = 2.0
+
+[monitoring]
+transaction_timeout_seconds = 300
+poll_interval_seconds = 5
+timeout_block_number = 0
+timeout_gas_used = "0"
+
+[transaction]
+value_wei = "0"
 "#;
     
     let temp_file = std::env::temp_dir().join("test_retry_config.toml");
@@ -299,6 +326,15 @@ max_attempts = 3
 base_delay_seconds = 5
 max_delay_seconds = 300
 backoff_multiplier = 2.0
+
+[monitoring]
+transaction_timeout_seconds = 300
+poll_interval_seconds = 5
+timeout_block_number = 0
+timeout_gas_used = "0"
+
+[transaction]
+value_wei = "0"
 "#;
     
     let temp_file = std::env::temp_dir().join("ethereum_test_config.toml");
@@ -331,6 +367,15 @@ max_attempts = 3
 base_delay_seconds = 5
 max_delay_seconds = 300
 backoff_multiplier = 2.0
+
+[monitoring]
+transaction_timeout_seconds = 300
+poll_interval_seconds = 5
+timeout_block_number = 0
+timeout_gas_used = "0"
+
+[transaction]
+value_wei = "0"
 "#;
     
     let temp_file = std::env::temp_dir().join("soneium_test_config.toml");

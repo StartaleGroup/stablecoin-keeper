@@ -184,7 +184,7 @@ async fn test_contract_transaction_signing() -> Result<()> {
     let usdsc_contract = USDSCContract::new(usdsc_address, provider);
     
     // Attempt to call claim_yield - this will fail but should be signed properly
-    let result = usdsc_contract.claim_yield().await;
+    let result = usdsc_contract.claim_yield("0").await;
     
     match result {
         Ok(tx_hash) => {

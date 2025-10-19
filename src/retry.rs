@@ -14,8 +14,8 @@ impl Default for RetryConfig {
     fn default() -> Self {
         Self {
             max_attempts: 3,
-            base_delay: Duration::from_secs(5),
-            max_delay: Duration::from_secs(300), // 5 minutes
+            base_delay: Duration::from_secs(5), // Default values - overridden by TOML config in production
+            max_delay: Duration::from_secs(300), // Default values - overridden by TOML config in production
             backoff_multiplier: 2.0,
         }
     }

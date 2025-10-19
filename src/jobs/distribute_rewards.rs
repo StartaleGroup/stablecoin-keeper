@@ -96,8 +96,9 @@ impl DistributeRewardsJob {
             let tx_hash = execute_with_retry(
                 || {
                     let contract = redistributor_contract.clone();
+                    let value_wei = self.config.transaction.value_wei.clone();
                     async move {
-                        contract.distribute().await
+                        contract.distribute(&value_wei).await
                     }
                 },
                 &retry_config,
@@ -106,10 +107,13 @@ impl DistributeRewardsJob {
             println!("✅ Distribute transaction sent: {:?}", tx_hash);
             
             // Monitor transaction until confirmation
-            let monitor = TransactionMonitor::new(
+            let timeout_gas_used = U256::from_str(&self.config.monitoring.timeout_gas_used)?;
+            let monitor = TransactionMonitor::new_with_timeout_values(
                 client.provider(),
-                Duration::from_secs(300), // 5 minutes max wait
-                Duration::from_secs(5),    // Poll every 5 seconds
+                Duration::from_secs(self.config.monitoring.transaction_timeout_seconds),
+                Duration::from_secs(self.config.monitoring.poll_interval_seconds),
+                self.config.monitoring.timeout_block_number,
+                timeout_gas_used,
             );
             
             let receipt = monitor.monitor_transaction(tx_hash).await?;

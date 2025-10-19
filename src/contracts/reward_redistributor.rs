@@ -6,6 +6,7 @@ use alloy::sol_types::SolCall;
 use alloy::providers::Provider;
 use anyhow::Result;
 use std::sync::Arc;
+use std::str::FromStr;
 
 sol! {
     #[sol(rpc)]
@@ -36,9 +37,10 @@ impl RewardRedistributorContract {
     }
     
     pub async fn preview_distribute(&self) -> Result<(U256, U256, U256, U256, U256, U256, U256, U256)> {
-        let data = hex::decode("12345678")?;
+        let call = IRewardRedistributor::previewDistributeCall {};
+        let data: Vec<u8> = call.abi_encode();
         
-        let _result = self.provider.call(
+        let result = self.provider.call(
             alloy::rpc::types::TransactionRequest {
                 to: Some(TxKind::Call(self.address)),
                 input: TransactionInput::new(Bytes::from(data)),
@@ -46,20 +48,31 @@ impl RewardRedistributorContract {
             }
         ).await?;
         
+        // Decode the 8-tuple return type using Alloy's ABI decoder
+        let decoded = IRewardRedistributor::previewDistributeCall::abi_decode_returns(&result)?;
+        
         Ok((
-            U256::ZERO, U256::ZERO, U256::ZERO, U256::ZERO,
-            U256::ZERO, U256::ZERO, U256::ZERO, U256::ZERO,
+            decoded.couldBeMinted,      // couldBeMinted
+            decoded.feeToStartale,      // feeToStartale
+            decoded.toEarn,             // toEarn
+            decoded.toOn,               // toOn
+            decoded.toStartaleExtra,    // toStartaleExtra
+            decoded.S_base,             // S_base
+            decoded.T_earn,             // T_earn
+            decoded.T_yield,            // T_yield
         ))
     }
     
-    pub async fn distribute(&self) -> Result<B256> {
+    pub async fn distribute(&self, value_wei: &str) -> Result<B256> {
         let call = IRewardRedistributor::distributeCall {};
         let data: Vec<u8> = call.abi_encode();
+        
+        let tx_value = U256::from_str(value_wei)?;
         
         let tx = TransactionRequest {
             to: Some(TxKind::Call(self.address)),
             input: TransactionInput::new(data.into()),
-            value: Some(U256::ZERO),
+            value: Some(tx_value),
             ..Default::default()
         };
         

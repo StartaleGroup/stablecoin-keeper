@@ -6,6 +6,7 @@ use alloy::sol_types::SolCall;
 use alloy::providers::Provider;
 use anyhow::Result;
 use std::sync::Arc;
+use std::str::FromStr;
 
 sol! {
     #[sol(rpc)]
@@ -27,7 +28,8 @@ impl USDSCContract {
     }
     
     pub async fn get_pending_yield(&self) -> Result<U256> {
-        let data = hex::decode("3f8c4f33")?;
+        let call = IUSDSC::r#yieldCall {};
+        let data: Vec<u8> = call.abi_encode();
         
         let result = self.provider.call(
             alloy::rpc::types::TransactionRequest {
@@ -42,14 +44,16 @@ impl USDSCContract {
     }
     
     
-    pub async fn claim_yield(&self) -> Result<B256> {
+    pub async fn claim_yield(&self, value_wei: &str) -> Result<B256> {
         let call = IUSDSC::claimYieldCall {};
         let data: Vec<u8> = call.abi_encode();
+        
+        let tx_value = U256::from_str(value_wei)?;
         
         let tx = TransactionRequest {
             to: Some(TxKind::Call(self.address)),
             input: TransactionInput::new(data.into()),
-            value: Some(U256::ZERO),
+            value: Some(tx_value),
             ..Default::default()
         };
         
