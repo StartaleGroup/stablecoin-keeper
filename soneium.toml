@@ -27,7 +27,7 @@ timeout_gas_used = "0"
 [transaction]
 value_wei = "0"
 
-# KMS configuration for secure signing (recommended for production)
+# KMS configuration for secure signing 
 [kms]
-key_id = "02ffc9fa-df34-4971-a900-fa1069b4a7fb"
-region = "ap-northeast-1"
+key_id = "${KMS_KEY_ID}"
+region = "${KMS_REGION}"
