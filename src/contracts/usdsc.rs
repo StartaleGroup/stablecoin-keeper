@@ -55,7 +55,6 @@ impl USDSCContract {
             to: Some(TxKind::Call(self.address)),
             input: TransactionInput::new(data.into()),
             value: Some(tx_value),
-            gas: Some(300000), // Set reasonable gas limit for claimYield
             ..Default::default()
         };
         

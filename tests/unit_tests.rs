@@ -208,7 +208,7 @@ value_wei = "0"
     
     // Verify environment variables were substituted
     assert_eq!(config.chain.rpc_url, "https://test.example.com");
-    assert_eq!(config.chain.private_key, "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890");
+    assert_eq!(config.kms.as_ref().unwrap().key_id, "test-kms-key-id");
     
     // Clean up
     std::fs::remove_file(&temp_file)?;
@@ -312,7 +312,6 @@ fn create_ethereum_test_config() -> Result<ChainConfig> {
 [chain]
 chain_id = 1
 rpc_url = "https://eth.llamarpc.com"
-private_key = "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
 
 [contracts]
 usdsc_address = "0x1234567890123456789012345678901234567890"
@@ -335,6 +334,10 @@ timeout_gas_used = "0"
 
 [transaction]
 value_wei = "0"
+
+[kms]
+key_id = "test-kms-key-id"
+region = "us-east-1"
 "#;
     
     let temp_file = std::env::temp_dir().join(format!("ethereum_test_config_{}.toml", std::process::id()));
@@ -351,7 +354,6 @@ fn create_soneium_test_config() -> Result<ChainConfig> {
 [chain]
 chain_id = 1946
 rpc_url = "https://rpc.soneium.org"
-private_key = "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
 
 [contracts]
 usdsc_address = "0x1111111111111111111111111111111111111111"
@@ -376,6 +378,10 @@ timeout_gas_used = "0"
 
 [transaction]
 value_wei = "0"
+
+[kms]
+key_id = "test-kms-key-id"
+region = "us-east-1"
 "#;
     
     let temp_file = std::env::temp_dir().join(format!("soneium_test_config_{}.toml", std::process::id()));

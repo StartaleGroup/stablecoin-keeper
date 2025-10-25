@@ -1,7 +1,6 @@
 [chain]
 chain_id = 11155111 # Sepolia testnet will be changed to soneium later
 rpc_url = "${SONEIUM_RPC_URL}"
-private_key = "${SONEIUM_PRIVATE_KEY}"
 
 [contracts]
 usdsc_address = "${SONEIUM_USDSC_ADDRESS}"

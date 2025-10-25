@@ -30,36 +30,23 @@ impl DistributeRewardsJob {
             self.config.retry.backoff_multiplier,
         );
 
-        // Choose signing method: KMS or private key
-        let client = if let Some(kms_config) = &self.config.kms {
-            println!("🔐 Using KMS signing with key: {}", kms_config.key_id);
-            execute_with_retry(
-                || {
-                    let rpc_url = self.config.chain.rpc_url.clone();
-                    let chain_id = self.config.chain.chain_id;
-                    let key_id = kms_config.key_id.clone();
-                    async move {
-                        BlockchainClient::new_with_kms(&rpc_url, chain_id, &key_id, &self.config).await
-                    }
-                },
-                &retry_config,
-                "Blockchain connection (KMS)",
-            ).await?
-        } else {
-            println!("🔑 Using private key signing");
-            execute_with_retry(
-                || {
-                    let rpc_url = self.config.chain.rpc_url.clone();
-                    let chain_id = self.config.chain.chain_id;
-                    let private_key = self.config.chain.private_key.clone();
-                    async move {
-                        BlockchainClient::new(&rpc_url, chain_id, &private_key).await
-                    }
-                },
-                &retry_config,
-                "Blockchain connection (Private Key)",
-            ).await?
-        };
+        // KMS signing is required
+        let kms_config = self.config.kms.as_ref()
+            .ok_or_else(|| anyhow::anyhow!("KMS configuration is required. Please configure KMS settings in your config file or via CLI."))?;
+            
+        println!("🔐 Using KMS signing with key: {}", kms_config.key_id);
+        let client = execute_with_retry(
+            || {
+                let rpc_url = self.config.chain.rpc_url.clone();
+                let chain_id = self.config.chain.chain_id;
+                let key_id = kms_config.key_id.clone();
+                async move {
+                    BlockchainClient::new(&rpc_url, chain_id, &key_id, &self.config).await
+                }
+            },
+            &retry_config,
+            "Blockchain connection (KMS)",
+        ).await?;
         
         let block_number = client.get_block_number().await?;
         println!("📦 Current block: {}", block_number);

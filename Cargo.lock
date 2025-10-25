@@ -4389,7 +4389,6 @@ name = "stablecoin-backend"
 version = "0.1.0"
 dependencies = [
  "alloy",
- "alloy-signer-aws",
  "anyhow",
  "aws-config",
  "aws-sdk-kms",

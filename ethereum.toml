@@ -2,7 +2,6 @@
 chain_id = 1
 rpc_url = "${ETH_RPC_URL}"
 rpc_backup_url = "${ETH_RPC_BACKUP_URL}"
-private_key = "${ETH_PRIVATE_KEY}"
 
 [contracts]
 usdsc_address = "${ETH_USDSC_ADDRESS}"

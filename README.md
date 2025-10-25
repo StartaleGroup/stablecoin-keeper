@@ -12,7 +12,7 @@ A Rust-based keeper service that automates yield distribution across two network
 
 ### Prerequisites
 - Rust 1.70+
-- Private keys for keeper wallets
+- AWS KMS setup for secure signing
 - RPC endpoints for both networks
 
 ### Setup
@@ -26,7 +26,7 @@ A Rust-based keeper service that automates yield distribution across two network
 2. **Configure environment:**
    ```bash
    cp .env.example .env
-   # Edit .env with your actual private keys and contract addresses
+   # Edit .env with your KMS settings and contract addresses
    ```
 
 3. **Test with dry run:**
@@ -39,8 +39,6 @@ A Rust-based keeper service that automates yield distribution across two network
 
 ### Environment Variables
 All sensitive data is stored in `.env`:
-- `ETH_PRIVATE_KEY` - Ethereum keeper wallet
-- `SONEIUM_PRIVATE_KEY` - Soneium keeper wallet  
 - `ETH_USDSC_ADDRESS` - USDSC contract on Ethereum
 - `SONEIUM_REWARD_REDISTRIBUTOR_ADDRESS` - RewardRedistributor contract
 - `KMS_KEY_ID` - AWS KMS key ID for secure signing
@@ -68,16 +66,32 @@ For enhanced security, we can use AWS KMS instead of private keys:
    region = "${KMS_REGION}"
    ```
 
-3. **Environment variables:**
+3. **Environment variables (automatic defaults):**
    ```bash
-   # .env
+   # .env - These are automatically substituted in TOML files
    KMS_KEY_ID=your-kms-key-id
    KMS_REGION=ap-northeast-1
    ```
+   
+   **How it works**: The TOML files use `${KMS_KEY_ID}` and `${KMS_REGION}` placeholders that are automatically replaced with values from your `.env` file when the config is loaded.
 
 4. **Grant contract roles to KMS address:**
    - Assign `DISTRIBUTOR_ROLE` to KMS address in RewardRedistributor contract
    - Assign `MINTER_ROLE` to KMS address in USDSC contract (if needed)
+
+### KMS Configuration Priority
+The system follows this priority order for KMS settings:
+1. **CLI arguments** (`--kms-key-id`, `--kms-region`) - highest priority
+2. **Config file with environment substitution** (`soneium.toml`, `ethereum.toml`) 
+3. **Defaults** (`ap-northeast-1` for region)
+
+**Note**: Environment variables are automatically loaded via `${KMS_KEY_ID}` and `${KMS_REGION}` placeholders in TOML files.
+
+### CLI Override Benefits
+- **Security**: Pass sensitive KMS keys via CLI instead of storing in files
+- **Flexibility**: Use different KMS keys for different operations without changing configs
+- **Environment switching**: Override for dev/staging/prod environments
+- **Testing**: Use test KMS keys without modifying configuration files
 
 ## 🎮 Usage
 
@@ -89,11 +103,23 @@ cargo run -- claim-yield --chain-id=1 --config=ethereum.toml
 # Distribute rewards on Soneium  
 cargo run -- distribute-rewards --chain-id=11155111 --config=soneium.toml
 
-# Override private key from CLI (more secure)
-cargo run -- claim-yield --chain-id=1 --config=ethereum.toml --private-key=0x...
+# Use KMS for Ethereum operations
+cargo run -- claim-yield --chain-id=1 --config=ethereum.toml --kms-key-id=eth-kms-key --kms-region=us-east-1
 
-# Use KMS for signing (Soneium)
-cargo run -- distribute-rewards --chain-id=11155111 --config=soneium.toml --kms-key-id=your-kms-key-id
+# Use KMS with custom region (override both key and region)
+cargo run -- distribute-rewards --chain-id=11155111 --config=soneium.toml --kms-key-id=your-kms-key-id --kms-region=us-west-2
+
+# Use KMS with defaults from .env (no CLI args needed)
+cargo run -- distribute-rewards --chain-id=11155111 --config=soneium.toml
+
+# Override just the key ID, use region from .env
+cargo run -- distribute-rewards --chain-id=11155111 --config=soneium.toml --kms-key-id=different-key
+
+# Override just the region, use key from .env
+cargo run -- distribute-rewards --chain-id=11155111 --config=soneium.toml --kms-region=eu-west-1
+
+# Use KMS for Ethereum operations
+cargo run -- claim-yield --chain-id=1 --config=ethereum.toml --kms-key-id=eth-kms-key --kms-region=us-east-1
 
 # Dry run mode (no transactions)
 cargo run -- claim-yield --chain-id=1 --config=ethereum.toml --dry-run
@@ -123,10 +149,10 @@ Use Kubernetes CronJobs or traditional cron:
 
 ## 🔐 Security
 
-- **Environment Variables** - All private keys stored in `.env` (never committed)
-- **CLI Private Key Override** - Pass private keys via CLI for enhanced security
 - **AWS KMS Support** - Secure transaction signing using AWS Key Management Service
-- **Separate Wallets** - Different keys for Ethereum and Soneium
+- **Environment Variables** - All sensitive data stored in `.env` (never committed)
+- **CLI Override Support** - Override KMS settings via CLI for enhanced security
+- **Separate KMS Keys** - Different KMS keys for Ethereum and Soneium
 - **Dry Run Mode** - Test operations without sending transactions
 - **Chain ID Validation** - Prevents accidental cross-chain operations
 - **Transaction Monitoring** - Real-time transaction status tracking with timeout handling

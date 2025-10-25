@@ -8,23 +8,26 @@ use std::str::FromStr;
 use std::time::Duration;
 
 #[tokio::test]
-async fn test_signer_integration() -> Result<()> {
-    // Test that signer is properly integrated with provider
-    let test_private_key = "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
+async fn test_kms_signer_integration() -> Result<()> {
+    // Test that KMS signer is properly integrated with provider
     let test_rpc_url = "https://eth.llamarpc.com"; // Public RPC for testing
     let test_chain_id = 1u64;
+    let test_kms_key_id = "test-kms-key-id";
     
-    // This should create a provider with integrated signer
-    let client = BlockchainClient::new(test_rpc_url, test_chain_id, test_private_key).await?;
+    // Create a test config with KMS settings
+    let config = create_test_config()?;
     
-    // Verify we can get the signer's address
+    // This should create a provider with integrated KMS signer
+    let client = BlockchainClient::new(test_rpc_url, test_chain_id, test_kms_key_id, &config).await?;
+    
+    // Verify we can get the provider
     let provider = client.provider();
     
     // Test that the provider includes the signer by checking if we can get chain ID
     let chain_id = provider.get_chain_id().await?;
     assert_eq!(chain_id, test_chain_id);
     
-    println!("✅ Signer integration test passed");
+    println!("✅ KMS signer integration test passed");
     Ok(())
 }
 
@@ -91,11 +94,12 @@ async fn test_retry_logic_failure() -> Result<()> {
 #[tokio::test]
 async fn test_transaction_monitor_creation() -> Result<()> {
     // Test that TransactionMonitor can be created with proper configuration
-    let test_private_key = "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
     let test_rpc_url = "https://eth.llamarpc.com";
     let test_chain_id = 1u64;
+    let test_kms_key_id = "test-kms-key-id";
     
-    let client = BlockchainClient::new(test_rpc_url, test_chain_id, test_private_key).await?;
+    let config = create_test_config()?;
+    let client = BlockchainClient::new(test_rpc_url, test_chain_id, test_kms_key_id, &config).await?;
     let provider = client.provider();
     
     let _monitor = TransactionMonitor::new(
@@ -223,7 +227,7 @@ value_wei = "0"
     
     // Verify environment variables were substituted
     assert_eq!(config.chain.rpc_url, "https://test.example.com");
-    assert_eq!(config.chain.private_key, "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890");
+    assert_eq!(config.kms.as_ref().unwrap().key_id, "test-kms-key-id");
     
     // Clean up
     std::fs::remove_file(&temp_file)?;
@@ -237,15 +241,15 @@ value_wei = "0"
 #[tokio::test]
 async fn test_chain_id_validation() -> Result<()> {
     // Test chain ID validation
-    let test_private_key = "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
     let test_rpc_url = "https://eth.llamarpc.com";
+    let config = create_test_config()?;
     
     // Test with correct chain ID
-    let client = BlockchainClient::new(test_rpc_url, 1u64, test_private_key).await?;
+    let client = BlockchainClient::new(test_rpc_url, 1u64, "test-kms-key-id", &config).await?;
     assert!(client.provider().get_chain_id().await? == 1);
     
     // Test with incorrect chain ID (should fail)
-    let result = BlockchainClient::new(test_rpc_url, 999u64, test_private_key).await;
+    let result = BlockchainClient::new(test_rpc_url, 999u64, "test-kms-key-id", &config).await;
     assert!(result.is_err());
     // Can't access error message due to Debug trait requirement
     
@@ -254,21 +258,63 @@ async fn test_chain_id_validation() -> Result<()> {
 }
 
 #[tokio::test]
-async fn test_private_key_validation() -> Result<()> {
-    // Test private key validation
+async fn test_kms_validation() -> Result<()> {
+    // Test KMS validation
     let test_rpc_url = "https://eth.llamarpc.com";
     let test_chain_id = 1u64;
     
-    // Test with valid private key
-    let valid_key = "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
-    let client = BlockchainClient::new(test_rpc_url, test_chain_id, valid_key).await?;
+    // Test with valid KMS config
+    let config = create_test_config()?;
+    let client = BlockchainClient::new(test_rpc_url, test_chain_id, "test-kms-key-id", &config).await?;
     assert!(client.provider().get_chain_id().await? == test_chain_id);
     
-    // Test with invalid private key (should fail)
-    let invalid_key = "invalid_key";
-    let result = BlockchainClient::new(test_rpc_url, test_chain_id, invalid_key).await;
+    // Test with invalid chain ID (should fail)
+    let result = BlockchainClient::new(test_rpc_url, 999u64, "test-kms-key-id", &config).await;
     assert!(result.is_err());
     
-    println!("✅ Private key validation test passed");
+    println!("✅ KMS validation test passed");
     Ok(())
+}
+
+// Helper function for creating test configurations
+fn create_test_config() -> Result<ChainConfig> {
+    let config_content = r#"
+[chain]
+chain_id = 1
+rpc_url = "https://eth.llamarpc.com"
+
+[contracts]
+usdsc_address = "0x1234567890123456789012345678901234567890"
+recipient_address = "0x0987654321098765432109876543210987654321"
+
+[thresholds]
+min_yield_threshold = "1000000"
+
+[retry]
+max_attempts = 3
+base_delay_seconds = 5
+max_delay_seconds = 300
+backoff_multiplier = 2.0
+
+[monitoring]
+transaction_timeout_seconds = 300
+poll_interval_seconds = 5
+timeout_block_number = 0
+timeout_gas_used = "0"
+
+[transaction]
+value_wei = "0"
+
+[kms]
+key_id = "test-kms-key-id"
+region = "us-east-1"
+"#;
+    
+    let temp_file = std::env::temp_dir().join(format!("test_config_{}.toml", std::process::id()));
+    std::fs::write(&temp_file, config_content)?;
+    
+    let config = ChainConfig::load(temp_file.to_str().unwrap())?;
+    std::fs::remove_file(&temp_file)?;
+    
+    Ok(config)
 }

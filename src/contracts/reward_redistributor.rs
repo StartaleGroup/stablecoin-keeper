@@ -74,7 +74,6 @@ impl RewardRedistributorContract {
             to: Some(TxKind::Call(self.address)),
             input: TransactionInput::new(data.into()),
             value: Some(tx_value),
-            gas: Some(500000), // Set reasonable gas limit
             ..Default::default()
         };
         

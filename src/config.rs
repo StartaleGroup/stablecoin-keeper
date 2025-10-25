@@ -20,7 +20,6 @@ pub struct ChainSettings {
     pub chain_id: u64,
     pub rpc_url: String,
     pub rpc_backup_url: Option<String>,
-    pub private_key: String,
 }
 
 #[derive(Debug, Deserialize, Serialize)]

@@ -37,16 +37,17 @@ async fn test_distribute_rewards_job_creation() -> Result<()> {
 #[tokio::test]
 async fn test_contract_creation() -> Result<()> {
     // Test that contract instances can be created
-    let test_private_key = "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
     let test_rpc_url = "https://eth.llamarpc.com";
     let test_chain_id = 1u64;
     
-    let client = BlockchainClient::new(test_rpc_url, test_chain_id, test_private_key).await?;
+    let config = create_test_config()?;
+    let client = BlockchainClient::new(test_rpc_url, test_chain_id, "test-kms-key-id", &config).await?;
     let provider = client.provider();
     
     // Test USDSC contract creation
     let usdsc_address = Address::from_str("0x1234567890123456789012345678901234567890")?;
-    let mock_client = Arc::new(BlockchainClient::new("https://1rpc.io/sepolia", 11155111, "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef").await?);
+    let mock_config = create_test_config()?;
+    let mock_client = Arc::new(BlockchainClient::new("https://1rpc.io/sepolia", 11155111, "test-kms-key-id", &mock_config).await?);
     let _usdsc_contract = USDSCContract::new(usdsc_address, provider.clone(), mock_client.clone());
     
     // Test RewardRedistributor contract creation
@@ -97,7 +98,7 @@ async fn test_config_validation() -> Result<()> {
     // Test that all required fields are present
     assert!(config.chain.chain_id > 0);
     assert!(!config.chain.rpc_url.is_empty());
-    assert!(!config.chain.private_key.is_empty());
+    assert!(config.kms.is_some());
     assert!(!config.contracts.usdsc_address.is_empty());
     assert!(!config.thresholds.min_yield_threshold.is_empty());
     assert!(config.retry.max_attempts > 0);
