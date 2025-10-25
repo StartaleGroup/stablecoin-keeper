@@ -4,6 +4,7 @@ mod blockchain;
 mod contracts;
 mod retry;
 mod transaction_monitor;
+mod kms_signer;
 
 use config::ChainConfig;
 use jobs::{ClaimYieldJob, DistributeRewardsJob};
@@ -29,7 +30,7 @@ enum Commands {
         config: String,
         
         #[arg(long)]
-        private_key: Option<String>,
+        kms_key_id: Option<String>,
         
         #[arg(long)]
         dry_run: bool,
@@ -42,7 +43,7 @@ enum Commands {
         config: String,
         
         #[arg(long)]
-        private_key: Option<String>,
+        kms_key_id: Option<String>,
         
         #[arg(long)]
         dry_run: bool,
@@ -55,11 +56,15 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::ClaimYield { chain_id, config, private_key, dry_run } => {
+        Commands::ClaimYield { chain_id, config, kms_key_id, dry_run } => {
             let mut chain_config = ChainConfig::load(&config)?;
             
-            if let Some(pk) = private_key {
-                chain_config.chain.private_key = pk;
+            // Override KMS key ID if provided via CLI
+            if let Some(key_id) = kms_key_id {
+                chain_config.kms = Some(crate::config::KmsSettings {
+                    key_id,
+                    region: None,
+                });
             }
 
             if chain_config.chain.chain_id != chain_id {
@@ -72,11 +77,15 @@ async fn main() -> Result<()> {
             let job = ClaimYieldJob::new(chain_config, dry_run);
             job.execute().await?;
         }
-        Commands::DistributeRewards { chain_id, config, private_key, dry_run } => {
+        Commands::DistributeRewards { chain_id, config, kms_key_id, dry_run } => {
             let mut chain_config = ChainConfig::load(&config)?;
             
-            if let Some(pk) = private_key {
-                chain_config.chain.private_key = pk;
+            // Override KMS key ID if provided via CLI
+            if let Some(key_id) = kms_key_id {
+                chain_config.kms = Some(crate::config::KmsSettings {
+                    key_id,
+                    region: None,
+                });
             }
             
             if chain_config.chain.chain_id != chain_id {

@@ -6,6 +6,7 @@ use stablecoin_backend::contracts::reward_redistributor::RewardRedistributorCont
 use alloy::primitives::{Address, U256};
 use anyhow::Result;
 use std::str::FromStr;
+use std::sync::Arc;
 
 #[tokio::test]
 async fn test_claim_yield_job_creation() -> Result<()> {
@@ -45,11 +46,12 @@ async fn test_contract_creation() -> Result<()> {
     
     // Test USDSC contract creation
     let usdsc_address = Address::from_str("0x1234567890123456789012345678901234567890")?;
-    let _usdsc_contract = USDSCContract::new(usdsc_address, provider.clone());
+    let mock_client = Arc::new(BlockchainClient::new("https://1rpc.io/sepolia", 11155111, "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef").await?);
+    let _usdsc_contract = USDSCContract::new(usdsc_address, provider.clone(), mock_client.clone());
     
     // Test RewardRedistributor contract creation
     let redistributor_address = Address::from_str("0x0987654321098765432109876543210987654321")?;
-    let _redistributor_contract = RewardRedistributorContract::new(redistributor_address, provider);
+    let _redistributor_contract = RewardRedistributorContract::new(redistributor_address, provider, mock_client);
     
     // Test that contracts were created successfully (address is private)
     println!("✅ Contracts created successfully");
@@ -156,7 +158,7 @@ usdsc_address = "0x1234567890123456789012345678901234567890"
 recipient_address = "0x0987654321098765432109876543210987654321"
 
 [thresholds]
-min_yield_threshold = "1000000000000000000"
+min_yield_threshold = "1000000"
 
 [retry]
 max_attempts = 3
@@ -174,7 +176,7 @@ timeout_gas_used = "0"
 value_wei = "0"
 "#;
     
-    let temp_file = std::env::temp_dir().join("test_config.toml");
+    let temp_file = std::env::temp_dir().join(format!("test_config_{}_{}.toml", std::process::id(), std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
     std::fs::write(&temp_file, config_content)?;
     
     let config = ChainConfig::load(temp_file.to_str().unwrap())?;
@@ -195,7 +197,7 @@ usdsc_address = "0x1234567890123456789012345678901234567890"
 recipient_address = "0x0987654321098765432109876543210987654321"
 
 [thresholds]
-min_yield_threshold = "1000000000000000000"
+min_yield_threshold = "1000000"
 
 [retry]
 max_attempts = 3
@@ -213,7 +215,7 @@ timeout_gas_used = "0"
 value_wei = "0"
 "#;
     
-    let temp_file = std::env::temp_dir().join("ethereum_test_config.toml");
+    let temp_file = std::env::temp_dir().join(format!("ethereum_test_config_{}_{}.toml", std::process::id(), std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
     std::fs::write(&temp_file, config_content)?;
     
     let config = ChainConfig::load(temp_file.to_str().unwrap())?;
@@ -236,7 +238,7 @@ earn_vault_address = "0x3333333333333333333333333333333333333333"
 susdsc_vault_address = "0x4444444444444444444444444444444444444444"
 
 [thresholds]
-min_yield_threshold = "1000000000000000000"
+min_yield_threshold = "1000000"
 
 [retry]
 max_attempts = 3
@@ -254,7 +256,7 @@ timeout_gas_used = "0"
 value_wei = "0"
 "#;
     
-    let temp_file = std::env::temp_dir().join("soneium_test_config.toml");
+    let temp_file = std::env::temp_dir().join(format!("soneium_test_config_{}_{}.toml", std::process::id(), std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
     std::fs::write(&temp_file, config_content)?;
     
     let config = ChainConfig::load(temp_file.to_str().unwrap())?;

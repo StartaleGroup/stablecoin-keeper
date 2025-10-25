@@ -20,11 +20,12 @@ sol! {
 pub struct USDSCContract {
     address: Address,
     provider: Arc<dyn Provider<Ethereum>>,
+    client: Arc<crate::blockchain::BlockchainClient>,
 }
 
 impl USDSCContract {
-    pub fn new(address: Address, provider: Arc<dyn Provider<Ethereum>>) -> Self {
-        Self { address, provider }
+    pub fn new(address: Address, provider: Arc<dyn Provider<Ethereum>>, client: Arc<crate::blockchain::BlockchainClient>) -> Self {
+        Self { address, provider, client }
     }
     
     pub async fn get_pending_yield(&self) -> Result<U256> {
@@ -54,10 +55,12 @@ impl USDSCContract {
             to: Some(TxKind::Call(self.address)),
             input: TransactionInput::new(data.into()),
             value: Some(tx_value),
+            gas: Some(300000), // Set reasonable gas limit for claimYield
             ..Default::default()
         };
         
-        let pending = self.provider.send_transaction(tx).await?;
-        Ok(*pending.tx_hash())
+        // Use the unified transaction sending (works for both private key and KMS)
+        let tx_hash = self.client.send_transaction(tx).await?;
+        Ok(tx_hash)
     }
 }

@@ -29,11 +29,12 @@ sol! {
 pub struct RewardRedistributorContract {
     address: Address,
     provider: Arc<dyn Provider<Ethereum>>,
+    client: Arc<crate::blockchain::BlockchainClient>,
 }
 
 impl RewardRedistributorContract {
-    pub fn new(address: Address, provider: Arc<dyn Provider<Ethereum>>) -> Self {
-        Self { address, provider }
+    pub fn new(address: Address, provider: Arc<dyn Provider<Ethereum>>, client: Arc<crate::blockchain::BlockchainClient>) -> Self {
+        Self { address, provider, client }
     }
     
     pub async fn preview_distribute(&self) -> Result<(U256, U256, U256, U256, U256, U256, U256, U256)> {
@@ -73,10 +74,12 @@ impl RewardRedistributorContract {
             to: Some(TxKind::Call(self.address)),
             input: TransactionInput::new(data.into()),
             value: Some(tx_value),
+            gas: Some(500000), // Set reasonable gas limit
             ..Default::default()
         };
         
-        let pending = self.provider.send_transaction(tx).await?;
-        Ok(*pending.tx_hash())
+        // Use the unified transaction sending (works for both private key and KMS)
+        let tx_hash = self.client.send_transaction(tx).await?;
+        Ok(tx_hash)
     }
 }

@@ -125,7 +125,7 @@ usdsc_address = "0x1234567890123456789012345678901234567890"
 recipient_address = "0x0987654321098765432109876543210987654321"
 
 [thresholds]
-min_yield_threshold = "1000000000000000000"
+min_yield_threshold = "1000000"
 
 [retry]
 max_attempts = 3
@@ -144,7 +144,7 @@ value_wei = "0"
 "#;
     
     // Write config to temporary file
-    let temp_file = std::env::temp_dir().join("test_config.toml");
+    let temp_file = std::env::temp_dir().join(format!("test_config_{}.toml", std::process::id()));
     std::fs::write(&temp_file, config_content)?;
     
     // Load config
@@ -154,7 +154,7 @@ value_wei = "0"
     assert_eq!(config.chain.chain_id, 1);
     assert_eq!(config.chain.rpc_url, "https://eth.llamarpc.com");
     assert_eq!(config.contracts.usdsc_address, "0x1234567890123456789012345678901234567890");
-    assert_eq!(config.thresholds.min_yield_threshold, "1000000000000000000");
+    assert_eq!(config.thresholds.min_yield_threshold, "1000000");
     assert_eq!(config.retry.max_attempts, 3);
     
     // Clean up
@@ -198,7 +198,7 @@ private_key = "${TEST_PRIVATE_KEY}"
 usdsc_address = "0x1234567890123456789012345678901234567890"
 
 [thresholds]
-min_yield_threshold = "1000000000000000000"
+min_yield_threshold = "1000000"
 
 [retry]
 max_attempts = 3
@@ -216,7 +216,7 @@ timeout_gas_used = "0"
 value_wei = "0"
 "#;
     
-    let temp_file = std::env::temp_dir().join("test_env_config.toml");
+    let temp_file = std::env::temp_dir().join(format!("test_env_config_{}.toml", std::process::id()));
     std::fs::write(&temp_file, config_content)?;
     
     let config = ChainConfig::load(temp_file.to_str().unwrap())?;

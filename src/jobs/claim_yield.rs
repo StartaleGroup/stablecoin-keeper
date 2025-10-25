@@ -6,6 +6,7 @@ use crate::transaction_monitor::{TransactionMonitor, TransactionStatus};
 use alloy::primitives::{Address, U256};
 use anyhow::Result;
 use std::str::FromStr;
+use std::sync::Arc;
 use std::time::Duration;
 
 pub struct ClaimYieldJob {
@@ -28,20 +29,38 @@ impl ClaimYieldJob {
             self.config.retry.backoff_multiplier,
         );
 
-        let client = execute_with_retry(
-            || {
-                let rpc_url = self.config.chain.rpc_url.clone();
-                let chain_id = self.config.chain.chain_id;
-                let private_key = self.config.chain.private_key.clone();
-                async move {
-                    BlockchainClient::new(&rpc_url, chain_id, &private_key).await
-                }
-            },
-            &retry_config,
-            "Blockchain connection",
-        ).await?;
+        // Choose signing method: KMS or private key
+        let client = if let Some(kms_config) = &self.config.kms {
+            println!("🔐 Using KMS signing with key: {}", kms_config.key_id);
+            execute_with_retry(
+                || {
+                    let rpc_url = self.config.chain.rpc_url.clone();
+                    let chain_id = self.config.chain.chain_id;
+                    let key_id = kms_config.key_id.clone();
+                    async move {
+                        BlockchainClient::new_with_kms(&rpc_url, chain_id, &key_id, &self.config).await
+                    }
+                },
+                &retry_config,
+                "Blockchain connection (KMS)",
+            ).await?
+        } else {
+            println!("🔑 Using private key signing");
+            execute_with_retry(
+                || {
+                    let rpc_url: String = self.config.chain.rpc_url.clone();
+                    let chain_id = self.config.chain.chain_id;
+                    let private_key = self.config.chain.private_key.clone();
+                    async move {
+                        BlockchainClient::new(&rpc_url, chain_id, &private_key).await
+                    }
+                },
+                &retry_config,
+                "Blockchain connection (Private Key)",
+            ).await?
+        };
         
-        let usdsc_contract = USDSCContract::new(Address::from_str(&self.config.contracts.usdsc_address)?, client.provider());
+        let usdsc_contract = USDSCContract::new(Address::from_str(&self.config.contracts.usdsc_address)?, client.provider(), Arc::new(client.clone()));
         
         let pending_yield = usdsc_contract.get_pending_yield().await?;
         println!("💰 Pending yield: {}", pending_yield);

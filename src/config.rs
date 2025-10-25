@@ -12,6 +12,7 @@ pub struct ChainConfig {
     pub retry: RetrySettings,
     pub monitoring: MonitoringSettings,
     pub transaction: TransactionSettings,
+    pub kms: Option<KmsSettings>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -55,6 +56,12 @@ pub struct MonitoringSettings {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct TransactionSettings {
     pub value_wei: String,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct KmsSettings {
+    pub key_id: String,
+    pub region: Option<String>,
 }
 
 impl ChainConfig {
