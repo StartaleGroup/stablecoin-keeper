@@ -6,7 +6,6 @@ async fn main() -> Result<()> {
     let args: Vec<String> = std::env::args().collect();
     if args.len() != 3 {
         eprintln!("Usage: {} <KMS_KEY_ID> <AWS_REGION>", args[0]);
-        eprintln!("Example: {} 02ffc9fa-df34-4971-a900 some-aws-region", args[0]);
         std::process::exit(1);
     }
     

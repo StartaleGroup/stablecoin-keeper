@@ -1,7 +1,6 @@
 [chain]
 chain_id = 11155111
 rpc_url = "${ETH_SEPOLIA_RPC_URL}"
-rpc_backup_url = "${ETH_SEPOLIA_RPC_BACKUP_URL}"
 
 [contracts]
 usdsc_address = "${ETH_SEPOLIA_USDSC_ADDRESS}"
