@@ -56,14 +56,13 @@ fn setup_config(config_path: &str, kms_key_id: Option<String>, aws_region: Optio
     
     // Override KMS settings from CLI if provided
     if let Some(key_id) = kms_key_id {
-        // Precedence: CLI aws_region > AWS_REGION env var > config region
-        let region = aws_region
-            .or_else(|| std::env::var("AWS_REGION").ok())
-            .or_else(|| chain_config.kms.as_ref().and_then(|kms| kms.region.clone()))
-            .ok_or_else(|| anyhow::anyhow!(
-                "KMS region not specified. Use --aws-region, set AWS_REGION environment variable, or configure region in {}",
-                config_path
-            ))?;
+        let region = aws_region.or_else(|| {
+            chain_config.kms.as_ref()
+                .and_then(|kms| kms.region.clone())
+        }).ok_or_else(|| anyhow::anyhow!(
+            "KMS region not specified. Use --aws-region or configure region in {}",
+            config_path
+        ))?;
             
         chain_config.kms = Some(crate::config::KmsSettings {
             key_id,
