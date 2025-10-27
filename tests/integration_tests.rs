@@ -14,7 +14,6 @@ use alloy::primitives::Address;
 use anyhow::Result;
 use std::str::FromStr;
 use std::time::Duration;
-use std::sync::Arc;
 
 #[tokio::test]
 async fn test_kms_signer_integration() -> Result<()> {
@@ -201,7 +200,7 @@ async fn test_environment_variable_substitution() -> Result<()> {
     
     let config_content = r#"
 [chain]
-chain_id = ${TEST_CHAIN_ID}
+chain_id = 42
 rpc_url = "${TEST_RPC_URL}"
 
 [contracts]
@@ -311,12 +310,11 @@ async fn test_contract_instantiation() -> Result<()> {
     
     // Test USDSC contract creation
     let usdsc_address = Address::from_str("0x1234567890123456789012345678901234567890")?;
-    let mock_client = Arc::new(client.clone());
-    let _usdsc_contract = USDSCContract::new(usdsc_address, provider.clone(), mock_client.clone());
+    let _usdsc_contract = USDSCContract::new(usdsc_address, provider.clone(), client.clone());
     
     // Test RewardRedistributor contract creation
     let redistributor_address = Address::from_str("0x0987654321098765432109876543210987654321")?;
-    let _redistributor_contract = RewardRedistributorContract::new(redistributor_address, provider, mock_client);
+    let _redistributor_contract = RewardRedistributorContract::new(redistributor_address, provider, client.clone());
     
     println!("✅ Contract instantiation test passed");
     Ok(())

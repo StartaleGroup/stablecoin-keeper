@@ -7,7 +7,6 @@ use crate::transaction_monitor::{TransactionMonitor, TransactionStatus};
 use alloy::primitives::{Address, U256};
 use anyhow::Result;
 use std::str::FromStr;
-use std::sync::Arc;
 use std::time::Duration;
 
 pub struct DistributeRewardsJob {
@@ -52,7 +51,7 @@ impl DistributeRewardsJob {
         println!("📦 Current block: {}", block_number);
         
         // First check USDSC yield (reusing logic from claim_yield.rs)
-        let usdsc_contract = USDSCContract::new(Address::from_str(&self.config.contracts.usdsc_address)?, client.provider(), Arc::new(client.clone()));
+        let usdsc_contract = USDSCContract::new(Address::from_str(&self.config.contracts.usdsc_address)?, client.provider(), client.clone());
         
         // Check pending yield (no retry for lightweight read operations)
         let pending_yield = usdsc_contract.get_pending_yield().await?;
@@ -71,7 +70,7 @@ impl DistributeRewardsJob {
         if let Some(redistributor_addr) = &self.config.contracts.reward_redistributor_address {
             // Create RewardRedistributor contract instance
             let redistributor_address = BlockchainClient::parse_address(redistributor_addr)?;
-            let redistributor_contract = RewardRedistributorContract::new(redistributor_address, client.provider(), Arc::new(client.clone()));
+            let redistributor_contract = RewardRedistributorContract::new(redistributor_address, client.provider(), client.clone());
             
             // Preview distribution (no retry for lightweight read operations)
             let preview = redistributor_contract.preview_distribute().await?;

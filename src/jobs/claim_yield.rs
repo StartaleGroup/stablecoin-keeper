@@ -6,7 +6,6 @@ use crate::transaction_monitor::{TransactionMonitor, TransactionStatus};
 use alloy::primitives::{Address, U256};
 use anyhow::Result;
 use std::str::FromStr;
-use std::sync::Arc;
 use std::time::Duration;
 
 pub struct ClaimYieldJob {
@@ -47,7 +46,7 @@ impl ClaimYieldJob {
             "Blockchain connection (KMS)",
         ).await?;
         
-        let usdsc_contract = USDSCContract::new(Address::from_str(&self.config.contracts.usdsc_address)?, client.provider(), Arc::new(client.clone()));
+        let usdsc_contract = USDSCContract::new(Address::from_str(&self.config.contracts.usdsc_address)?, client.provider(), client.clone());
         
         let pending_yield = usdsc_contract.get_pending_yield().await?;
         println!("💰 Pending yield: {}", pending_yield);

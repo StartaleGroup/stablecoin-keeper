@@ -184,7 +184,7 @@ async fn test_environment_variable_substitution() -> Result<()> {
     
     let config_content = r#"
 [chain]
-chain_id = ${TEST_CHAIN_ID}
+chain_id = 42
 rpc_url = "${TEST_RPC_URL}"
 
 [contracts]

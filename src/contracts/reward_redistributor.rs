@@ -7,6 +7,7 @@ use alloy::providers::Provider;
 use anyhow::Result;
 use std::sync::Arc;
 use std::str::FromStr;
+use crate::blockchain::BlockchainClient;
 
 sol! {
     #[sol(rpc)]
@@ -29,12 +30,12 @@ sol! {
 pub struct RewardRedistributorContract {
     address: Address,
     provider: Arc<dyn Provider<Ethereum>>,
-    client: Arc<crate::blockchain::BlockchainClient>,
+    client: Arc<BlockchainClient>,
 }
 
 impl RewardRedistributorContract {
-    pub fn new(address: Address, provider: Arc<dyn Provider<Ethereum>>, client: Arc<crate::blockchain::BlockchainClient>) -> Self {
-        Self { address, provider, client }
+    pub fn new(address: Address, provider: Arc<dyn Provider<Ethereum>>, client: BlockchainClient) -> Self {
+        Self { address, provider, client: Arc::new(client) }
     }
     
     pub async fn preview_distribute(&self) -> Result<(U256, U256, U256, U256, U256, U256, U256, U256)> {

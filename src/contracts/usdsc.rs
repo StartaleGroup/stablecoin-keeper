@@ -7,7 +7,7 @@ use alloy::providers::Provider;
 use anyhow::Result;
 use std::sync::Arc;
 use std::str::FromStr;
-
+use crate::blockchain::BlockchainClient;
 sol! {
     #[sol(rpc)]
     interface IUSDSC {
@@ -20,12 +20,12 @@ sol! {
 pub struct USDSCContract {
     address: Address,
     provider: Arc<dyn Provider<Ethereum>>,
-    client: Arc<crate::blockchain::BlockchainClient>,
+    client: Arc<BlockchainClient>,
 }
 
 impl USDSCContract {
-    pub fn new(address: Address, provider: Arc<dyn Provider<Ethereum>>, client: Arc<crate::blockchain::BlockchainClient>) -> Self {
-        Self { address, provider, client }
+    pub fn new(address: Address, provider: Arc<dyn Provider<Ethereum>>, client: BlockchainClient) -> Self {
+        Self { address, provider, client: Arc::new(client) }
     }
     
     pub async fn get_pending_yield(&self) -> Result<U256> {
