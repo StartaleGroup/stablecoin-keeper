@@ -1,0 +1,9 @@
+[chain]
+chain_id = 1946 
+rpc_url = "${SONEIUM_MINATO_RPC_URL}"
+
+[contracts]
+usdsc_address = "${SONEIUM_MINATO_USDSC_ADDRESS}"
+reward_redistributor_address = "${SONEIUM_MINATO_REWARD_REDISTRIBUTOR_ADDRESS}"
+earn_vault_address = "${SONEIUM_MINATO_EARN_VAULT_ADDRESS}"
+susdsc_vault_address = "${SONEIUM_MINATO_SUSDSC_VAULT_ADDRESS}"

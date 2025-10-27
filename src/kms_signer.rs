@@ -12,11 +12,10 @@ impl KmsSigner {
     pub async fn new(key_id: String, region: String, chain_id: u64) -> Result<Self> {
         println!("🔐 Initializing AWS KMS signer...");
         
-        if std::env::var("AWS_REGION").is_err() {
-            std::env::set_var("AWS_REGION", &region);
-        }
-        
-        let config = aws_config::load_defaults(BehaviorVersion::latest()).await;
+        let config = aws_config::defaults(BehaviorVersion::latest())
+            .region(aws_config::Region::new(region.clone()))
+            .load()
+            .await;
         let kms_client = KmsClient::new(&config);
         
         let signer = AwsSigner::new(kms_client, key_id, Some(chain_id)).await

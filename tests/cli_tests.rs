@@ -1,3 +1,8 @@
+//! CLI Tests
+//! 
+//! Tests for command-line interface functionality, argument parsing, and help output.
+//! These tests verify that the CLI works correctly and provides proper user guidance.
+
 use std::process::Command;
 
 #[test]

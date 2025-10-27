@@ -31,108 +31,74 @@ A Rust-based keeper service that automates yield distribution across two network
 
 3. **Test with dry run:**
    ```bash
-   cargo run -- claim-yield --chain-id=1 --config=ethereum.toml --dry-run
-   cargo run -- distribute-rewards --chain-id=1946 --config=soneium.toml --dry-run
+   cargo run -- claim-yield --config=ethereum.toml --dry-run
+   cargo run -- distribute-rewards --config=soneium.toml --dry-run
    ```
 
 ## 🔧 Configuration
 
 ### Environment Variables
-All sensitive data is stored in `.env`:
-- `ETH_USDSC_ADDRESS` - USDSC contract on Ethereum
-- `SONEIUM_REWARD_REDISTRIBUTOR_ADDRESS` - RewardRedistributor contract
-- `KMS_KEY_ID` - AWS KMS key ID for secure signing
-- `KMS_REGION` - AWS region for KMS operations
-- See `.env.example` for complete list
+- Check .env.examples
 
 ### Network Configs
-- `ethereum.toml` - Ethereum network settings
-- `soneium.toml` - Soneium network settings
+- `configs/common.toml` - Shared configuration (retry, monitoring, thresholds)
+- `configs/ethereum-mainnet.toml` - Ethereum mainnet
+- `configs/ethereum-sepolia.toml` - Ethereum testnet
+- `configs/soneium-minato.toml` - Soneium Minato
+- `configs/soneium-mainnet.toml` - Soneium mainnet
 
 ### AWS KMS Configuration
-For enhanced security, we can use AWS KMS instead of private keys:
+For enhanced security, use AWS KMS instead of private keys:
 
-1. **Setup KMS Key:**
+1. **Get KMS address:**
    ```bash
-   # Get KMS address (for role assignment)
-   cargo run --bin get-kms-address -- --key-id <KMS_KEY_ID> --region <AWS_REGION>
+   cargo run --bin get-kms-address -- <KMS_KEY_ID> <AWS_REGION>
    ```
 
-2. **Configure KMS in network configs:**
-   ```toml
-   # soneium.toml
-   [kms]
-   key_id = "${KMS_KEY_ID}"
-   region = "${KMS_REGION}"
-   ```
-
-3. **Environment variables (automatic defaults):**
+2. **Configure in .env:**
    ```bash
-   # .env - These are automatically substituted in TOML files
    KMS_KEY_ID=your-kms-key-id
-   KMS_REGION=ap-northeast-1
+   AWS_REGION=aws-region
    ```
-   
-   **How it works**: The TOML files use `${KMS_KEY_ID}` and `${KMS_REGION}` placeholders that are automatically replaced with values from your `.env` file when the config is loaded.
 
-4. **Grant contract roles to KMS address:**
-   - Assign `DISTRIBUTOR_ROLE` to KMS address in RewardRedistributor contract
-   - Assign `MINTER_ROLE` to KMS address in USDSC contract (if needed)
-
-### KMS Configuration Priority
-The system follows this priority order for KMS settings:
-1. **CLI arguments** (`--kms-key-id`, `--kms-region`) - highest priority
-2. **Config file with environment substitution** (`soneium.toml`, `ethereum.toml`) 
-3. **Defaults** (`ap-northeast-1` for region)
-
-**Note**: Environment variables are automatically loaded via `${KMS_KEY_ID}` and `${KMS_REGION}` placeholders in TOML files.
-
-### CLI Override Benefits
-- **Security**: Pass sensitive KMS keys via CLI instead of storing in files
-- **Flexibility**: Use different KMS keys for different operations without changing configs
-- **Environment switching**: Override for dev/staging/prod environments
-- **Testing**: Use test KMS keys without modifying configuration files
+3. **Grant contract roles to KMS address** in your smart contracts
 
 ## 🎮 Usage
 
+### CLI Parameters
+- `--config` - Path to network configuration file
+- `--kms-key-id` - Override KMS key ID (optional)
+- `--aws-region` - Override AWS region (optional)
+- `--dry-run` - Test mode without sending transactions
+
+
 ### Manual Execution
 ```bash
-# Claim yield on Ethereum
-cargo run -- claim-yield --chain-id=1 --config=ethereum.toml
+# Testing
+cargo run -- claim-yield --config=configs/ethereum-sepolia.toml
+cargo run -- distribute-rewards --config=configs/ethereum-sepolia.toml
+cargo run -- distribute-rewards --config=configs/soneium-minato.toml
 
-# Distribute rewards on Soneium  
-cargo run -- distribute-rewards --chain-id=11155111 --config=soneium.toml
+# Production
+cargo run -- claim-yield --config=configs/ethereum-mainnet.toml
 
-# Use KMS for Ethereum operations
-cargo run -- claim-yield --chain-id=1 --config=ethereum.toml --kms-key-id=eth-kms-key --kms-region=us-east-1
+# With KMS (secure signing) - region from AWS_REGION env var
+cargo run -- claim-yield --config=configs/ethereum-sepolia.toml --kms-key-id=your-key-id
 
-# Use KMS with custom region (override both key and region)
-cargo run -- distribute-rewards --chain-id=11155111 --config=soneium.toml --kms-key-id=your-kms-key-id --kms-region=us-west-2
+# With KMS and custom region override
+cargo run -- claim-yield --config=configs/ethereum-sepolia.toml --kms-key-id=your-key-id --aws-region=us-west-2
 
-# Use KMS with defaults from .env (no CLI args needed)
-cargo run -- distribute-rewards --chain-id=11155111 --config=soneium.toml
-
-# Override just the key ID, use region from .env
-cargo run -- distribute-rewards --chain-id=11155111 --config=soneium.toml --kms-key-id=different-key
-
-# Override just the region, use key from .env
-cargo run -- distribute-rewards --chain-id=11155111 --config=soneium.toml --kms-region=eu-west-1
-
-# Use KMS for Ethereum operations
-cargo run -- claim-yield --chain-id=1 --config=ethereum.toml --kms-key-id=eth-kms-key --kms-region=us-east-1
-
-# Dry run mode (no transactions)
-cargo run -- claim-yield --chain-id=1 --config=ethereum.toml --dry-run
+# Dry run (safe testing)
+cargo run -- claim-yield --config=configs/ethereum-sepolia.toml --dry-run
 ```
 
 ### Production Scheduling
-Use Kubernetes CronJobs or traditional cron:
 ```bash
 # Every 10 minutes - Ethereum yield claiming
-*/10 * * * * /path/to/vault-keeper claim-yield --chain-id=1 --config=ethereum.toml
+*/10 * * * * /path/to/vault-keeper claim-yield --config=configs/ethereum-mainnet.toml
 
 # Every 3 hours - Soneium distribution
-0 */3 * * * /path/to/vault-keeper distribute-rewards --chain-id=1946 --config=soneium.toml
+0 */3 * * * /path/to/vault-keeper distribute-rewards --config=configs/soneium-mainnet.toml
 ```
 
 ## 🏗️ Architecture
@@ -160,6 +126,15 @@ Use Kubernetes CronJobs or traditional cron:
 ## 📁 Project Structure
 
 ```
+configs/              # Configuration files
+├── common.toml             # Shared configuration (retry, monitoring, thresholds)
+├── ethereum-mainnet.toml   # Ethereum mainnet (production)
+├── ethereum-sepolia.toml   # Ethereum testnet (testing)
+├── soneium-minato.toml     # Soneium Minato testnet
+└── soneium-mainnet.toml    # Soneium mainnet (future)
+
+env.example           # Environment variables template
+
 src/
 ├── main.rs              # CLI interface
 ├── config.rs           # Configuration loading
@@ -171,6 +146,11 @@ src/
 └── jobs/               # Keeper job implementations
     ├── claim_yield.rs
     └── distribute_rewards.rs
+
+tests/                 # Test suites
+├── unit_tests.rs       # Pure unit tests
+├── integration_tests.rs # Component integration tests
+└── cli_tests.rs       # CLI functionality tests
 ```
 
 ## 🚀 Production Deployment
@@ -190,7 +170,7 @@ spec:
           containers:
           - name: vault-keeper
             image: vault-keeper:latest
-            command: ["vault-keeper", "claim-yield", "--chain-id=1", "--config=ethereum.toml"]
+            command: ["vault-keeper", "claim-yield", "--config=ethereum.toml"]
             env:
             - name: ETH_PRIVATE_KEY
               valueFrom:

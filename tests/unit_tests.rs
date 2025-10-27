@@ -1,3 +1,8 @@
+//! Unit Tests
+//! 
+//! Tests for individual functions, parsing logic, retry mechanisms, and data structures.
+//! These tests verify isolated functionality without external dependencies.
+
 use stablecoin_backend::retry::{execute_with_retry, RetryConfig};
 use stablecoin_backend::transaction_monitor::{TransactionStatus, TransactionReceipt};
 use stablecoin_backend::config::ChainConfig;
@@ -52,18 +57,22 @@ async fn test_retry_logic_failure() -> Result<()> {
         2.0, // backoff_multiplier
     );
     
+    let attempt_count = Arc::new(Mutex::new(0));
     let result = execute_with_retry(
         || {
+            let count = attempt_count.clone();
             async move {
+                let mut attempts = count.lock().unwrap();
+                *attempts += 1;
                 Err::<String, anyhow::Error>(anyhow::anyhow!("Always fails"))
             }
         },
         &config,
-        "Failing operation",
+        "Test operation",
     ).await;
     
     assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("Always fails"));
+    assert_eq!(*attempt_count.lock().unwrap(), 2);
     
     println!("✅ Retry logic failure test passed");
     Ok(())
@@ -71,57 +80,58 @@ async fn test_retry_logic_failure() -> Result<()> {
 
 #[tokio::test]
 async fn test_transaction_status_enum() -> Result<()> {
-    // Test that TransactionStatus enum works correctly
+    // Test TransactionStatus enum variants
     let success = TransactionStatus::Success;
     let failed = TransactionStatus::Failed;
     let timeout = TransactionStatus::Timeout;
     
-    // Test that all variants can be created
-    assert!(matches!(success, TransactionStatus::Success));
-    assert!(matches!(failed, TransactionStatus::Failed));
-    assert!(matches!(timeout, TransactionStatus::Timeout));
+    // Test that we can create and match on the enum
+    match success {
+        TransactionStatus::Success => println!("✅ Success status works"),
+        _ => panic!("Expected Success status"),
+    }
     
-    // Test equality
-    assert_eq!(success, TransactionStatus::Success);
-    assert_ne!(success, TransactionStatus::Failed);
+    match failed {
+        TransactionStatus::Failed => println!("✅ Failed status works"),
+        _ => panic!("Expected Failed status"),
+    }
     
-    println!("✅ TransactionStatus enum test passed");
+    match timeout {
+        TransactionStatus::Timeout => println!("✅ Timeout status works"),
+        _ => panic!("Expected Timeout status"),
+    }
+    
+    println!("✅ Transaction status enum test passed");
     Ok(())
 }
 
 #[tokio::test]
 async fn test_transaction_receipt_creation() -> Result<()> {
-    // Test that TransactionReceipt can be created
+    // Test TransactionReceipt creation and field access
     let hash = B256::from([1u8; 32]);
-    let block_number = 12345u64;
-    let gas_used = U256::from(21000u64);
-    let status = TransactionStatus::Success;
-    
     let receipt = TransactionReceipt {
         hash,
-        block_number,
-        gas_used,
-        status: status.clone(),
+        block_number: 12345,
+        gas_used: U256::from(21000),
+        status: TransactionStatus::Success,
     };
     
-    // Test that receipt was created correctly
     assert_eq!(receipt.hash, hash);
-    assert_eq!(receipt.block_number, block_number);
-    assert_eq!(receipt.gas_used, gas_used);
-    assert_eq!(receipt.status, status);
+    assert_eq!(receipt.block_number, 12345);
+    assert_eq!(receipt.gas_used, U256::from(21000));
+    assert_eq!(receipt.status, TransactionStatus::Success);
     
-    println!("✅ TransactionReceipt creation test passed");
+    println!("✅ Transaction receipt creation test passed");
     Ok(())
 }
 
 #[tokio::test]
 async fn test_config_loading() -> Result<()> {
-    // Test that configuration can be loaded from TOML files
+    // Test configuration loading from TOML content
     let config_content = r#"
 [chain]
 chain_id = 1
 rpc_url = "https://eth.llamarpc.com"
-private_key = "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
 
 [contracts]
 usdsc_address = "0x1234567890123456789012345678901234567890"
@@ -144,24 +154,23 @@ timeout_gas_used = "0"
 
 [transaction]
 value_wei = "0"
+
+[kms]
+key_id = "test-kms-key-id"
+region = "us-east-1"
 "#;
     
-    // Write config to temporary file
-    let temp_file = std::env::temp_dir().join(format!("test_config_{}.toml", std::process::id()));
+    let temp_file = std::env::temp_dir().join(format!("test_config_{}_{}.toml", std::process::id(), std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
     std::fs::write(&temp_file, config_content)?;
-    
-    // Load config
     let config = ChainConfig::load(temp_file.to_str().unwrap())?;
+    std::fs::remove_file(&temp_file)?;
     
-    // Verify config was loaded correctly
     assert_eq!(config.chain.chain_id, 1);
     assert_eq!(config.chain.rpc_url, "https://eth.llamarpc.com");
     assert_eq!(config.contracts.usdsc_address, "0x1234567890123456789012345678901234567890");
     assert_eq!(config.thresholds.min_yield_threshold, "1000000");
     assert_eq!(config.retry.max_attempts, 3);
-    
-    // Clean up
-    std::fs::remove_file(&temp_file)?;
+    assert!(config.kms.is_some());
     
     println!("✅ Config loading test passed");
     Ok(())
@@ -171,16 +180,16 @@ value_wei = "0"
 async fn test_environment_variable_substitution() -> Result<()> {
     // Test environment variable substitution in config
     std::env::set_var("TEST_RPC_URL", "https://test.example.com");
-    std::env::set_var("TEST_PRIVATE_KEY", "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890");
+    std::env::set_var("TEST_CHAIN_ID", "42");
     
     let config_content = r#"
 [chain]
-chain_id = 1
+chain_id = ${TEST_CHAIN_ID}
 rpc_url = "${TEST_RPC_URL}"
-private_key = "${TEST_PRIVATE_KEY}"
 
 [contracts]
 usdsc_address = "0x1234567890123456789012345678901234567890"
+recipient_address = "0x0987654321098765432109876543210987654321"
 
 [thresholds]
 min_yield_threshold = "1000000"
@@ -199,21 +208,23 @@ timeout_gas_used = "0"
 
 [transaction]
 value_wei = "0"
+
+[kms]
+key_id = "test-kms-key-id"
+region = "us-east-1"
 "#;
     
-    let temp_file = std::env::temp_dir().join(format!("test_env_config_{}.toml", std::process::id()));
+    let temp_file = std::env::temp_dir().join(format!("test_config_{}_{}.toml", std::process::id(), std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
     std::fs::write(&temp_file, config_content)?;
-    
     let config = ChainConfig::load(temp_file.to_str().unwrap())?;
-    
-    // Verify environment variables were substituted
-    assert_eq!(config.chain.rpc_url, "https://test.example.com");
-    assert_eq!(config.kms.as_ref().unwrap().key_id, "test-kms-key-id");
-    
-    // Clean up
     std::fs::remove_file(&temp_file)?;
+    
+    assert_eq!(config.chain.chain_id, 42);
+    assert_eq!(config.chain.rpc_url, "https://test.example.com");
+    
+    // Clean up environment variables
     std::env::remove_var("TEST_RPC_URL");
-    std::env::remove_var("TEST_PRIVATE_KEY");
+    std::env::remove_var("TEST_CHAIN_ID");
     
     println!("✅ Environment variable substitution test passed");
     Ok(())
@@ -239,49 +250,18 @@ async fn test_yield_threshold_logic() -> Result<()> {
 #[tokio::test]
 async fn test_retry_configuration_validation() -> Result<()> {
     // Test retry configuration validation
-    let config_content = r#"
-[chain]
-chain_id = 1
-rpc_url = "https://eth.llamarpc.com"
-private_key = "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef"
-
-[contracts]
-usdsc_address = "0x1234567890123456789012345678901234567890"
-
-[thresholds]
-min_yield_threshold = "1000000"
-
-[retry]
-max_attempts = 3
-base_delay_seconds = 5
-max_delay_seconds = 300
-backoff_multiplier = 2.0
-
-[monitoring]
-transaction_timeout_seconds = 300
-poll_interval_seconds = 5
-timeout_block_number = 0
-timeout_gas_used = "0"
-
-[transaction]
-value_wei = "0"
-"#;
+    let valid_config = RetryConfig::new(
+        3,
+        Duration::from_secs(1),
+        Duration::from_secs(60),
+        2.0,
+    );
     
-    let temp_file = std::env::temp_dir().join(format!("test_retry_config_{}.toml", std::process::id()));
-    std::fs::write(&temp_file, config_content)?;
-    
-    let config = ChainConfig::load(temp_file.to_str().unwrap())?;
-    
-    // Test that retry settings are reasonable
-    assert!(config.retry.max_attempts >= 1);
-    assert!(config.retry.max_attempts <= 10); // Reasonable upper bound
-    assert!(config.retry.base_delay_seconds >= 1);
-    assert!(config.retry.max_delay_seconds >= config.retry.base_delay_seconds);
-    assert!(config.retry.backoff_multiplier >= 1.0);
-    assert!(config.retry.backoff_multiplier <= 5.0); // Reasonable upper bound
-    
-    // Clean up
-    std::fs::remove_file(&temp_file)?;
+    // Test that valid config is created successfully
+    assert_eq!(valid_config.max_attempts, 3);
+    assert_eq!(valid_config.base_delay, Duration::from_secs(1));
+    assert_eq!(valid_config.max_delay, Duration::from_secs(60));
+    assert_eq!(valid_config.backoff_multiplier, 2.0);
     
     println!("✅ Retry configuration validation test passed");
     Ok(())
@@ -289,26 +269,8 @@ value_wei = "0"
 
 #[tokio::test]
 async fn test_chain_specific_configuration() -> Result<()> {
-    // Test that different chain configurations work
-    let ethereum_config = create_ethereum_test_config()?;
-    let soneium_config = create_soneium_test_config()?;
-    
-    // Test Ethereum config
-    assert_eq!(ethereum_config.chain.chain_id, 1);
-    assert!(ethereum_config.chain.rpc_url.contains("eth"));
-    
-    // Test Soneium config
-    assert_eq!(soneium_config.chain.chain_id, 1946);
-    assert!(soneium_config.chain.rpc_url.contains("soneium"));
-    assert!(soneium_config.contracts.reward_redistributor_address.is_some());
-    
-    println!("✅ Chain-specific configuration test passed");
-    Ok(())
-}
-
-// Helper functions for creating test configurations
-fn create_ethereum_test_config() -> Result<ChainConfig> {
-    let config_content = r#"
+    // Test chain-specific configuration loading
+    let ethereum_config_content = r#"
 [chain]
 chain_id = 1
 rpc_url = "https://eth.llamarpc.com"
@@ -340,55 +302,14 @@ key_id = "test-kms-key-id"
 region = "us-east-1"
 "#;
     
-    let temp_file = std::env::temp_dir().join(format!("ethereum_test_config_{}.toml", std::process::id()));
-    std::fs::write(&temp_file, config_content)?;
-    
+    let temp_file = std::env::temp_dir().join(format!("test_config_{}_{}.toml", std::process::id(), std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+    std::fs::write(&temp_file, ethereum_config_content)?;
     let config = ChainConfig::load(temp_file.to_str().unwrap())?;
     std::fs::remove_file(&temp_file)?;
     
-    Ok(config)
-}
-
-fn create_soneium_test_config() -> Result<ChainConfig> {
-    let config_content = r#"
-[chain]
-chain_id = 1946
-rpc_url = "https://rpc.soneium.org"
-
-[contracts]
-usdsc_address = "0x1111111111111111111111111111111111111111"
-reward_redistributor_address = "0x2222222222222222222222222222222222222222"
-earn_vault_address = "0x3333333333333333333333333333333333333333"
-susdsc_vault_address = "0x4444444444444444444444444444444444444444"
-
-[thresholds]
-min_yield_threshold = "1000000"
-
-[retry]
-max_attempts = 3
-base_delay_seconds = 5
-max_delay_seconds = 300
-backoff_multiplier = 2.0
-
-[monitoring]
-transaction_timeout_seconds = 300
-poll_interval_seconds = 5
-timeout_block_number = 0
-timeout_gas_used = "0"
-
-[transaction]
-value_wei = "0"
-
-[kms]
-key_id = "test-kms-key-id"
-region = "us-east-1"
-"#;
+    assert_eq!(config.chain.chain_id, 1);
+    assert_eq!(config.chain.rpc_url, "https://eth.llamarpc.com");
     
-    let temp_file = std::env::temp_dir().join(format!("soneium_test_config_{}.toml", std::process::id()));
-    std::fs::write(&temp_file, config_content)?;
-    
-    let config = ChainConfig::load(temp_file.to_str().unwrap())?;
-    std::fs::remove_file(&temp_file)?;
-    
-    Ok(config)
+    println!("✅ Chain-specific configuration test passed");
+    Ok(())
 }

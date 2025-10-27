@@ -18,8 +18,10 @@ impl BlockchainClient {
         
         let url = Url::parse(rpc_url)?;
         
-        let kms_region = chain_config.kms.as_ref().and_then(|kms| kms.region.as_deref()).unwrap_or("ap-northeast-1");
-        let kms_signer = KmsSigner::new(kms_key_id.to_string(), kms_region.to_string(), expected_chain_id).await?;
+        let aws_region = chain_config.kms.as_ref()
+            .and_then(|kms| kms.region.as_deref())
+            .ok_or_else(|| anyhow::anyhow!("KMS region not configured. Set AWS_REGION environment variable or configure region in config file"))?;
+        let kms_signer = KmsSigner::new(kms_key_id.to_string(), aws_region.to_string(), expected_chain_id).await?;
         let kms_address = kms_signer.address();
         
         let provider = ProviderBuilder::new()
