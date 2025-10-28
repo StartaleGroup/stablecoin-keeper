@@ -28,20 +28,25 @@ impl ClaimYieldJob {
             self.config.retry.backoff_multiplier,
         );
 
+        // KMS signing is required
+        let kms_config = self.config.kms.as_ref()
+            .ok_or_else(|| anyhow::anyhow!("KMS configuration is required. Please configure KMS settings in your config file or via CLI."))?;
+            
+        println!("🔐 Using KMS signing with key: {}", kms_config.key_id);
         let client = execute_with_retry(
             || {
                 let rpc_url = self.config.chain.rpc_url.clone();
                 let chain_id = self.config.chain.chain_id;
-                let private_key = self.config.chain.private_key.clone();
+                let key_id = kms_config.key_id.clone();
                 async move {
-                    BlockchainClient::new(&rpc_url, chain_id, &private_key).await
+                    BlockchainClient::new(&rpc_url, chain_id, &key_id, &self.config).await
                 }
             },
             &retry_config,
-            "Blockchain connection",
+            "Blockchain connection (KMS)",
         ).await?;
         
-        let usdsc_contract = USDSCContract::new(Address::from_str(&self.config.contracts.usdsc_address)?, client.provider());
+        let usdsc_contract = USDSCContract::new(Address::from_str(&self.config.contracts.usdsc_address)?, client.provider(), client.clone());
         
         let pending_yield = usdsc_contract.get_pending_yield().await?;
         println!("💰 Pending yield: {}", pending_yield);

@@ -29,25 +29,29 @@ impl DistributeRewardsJob {
             self.config.retry.backoff_multiplier,
         );
 
-        // Connect to blockchain with retry
+        // KMS signing is required
+        let kms_config = self.config.kms.as_ref()
+            .ok_or_else(|| anyhow::anyhow!("KMS configuration is required. Please configure KMS settings in your config file or via CLI."))?;
+            
+        println!("🔐 Using KMS signing with key: {}", kms_config.key_id);
         let client = execute_with_retry(
             || {
                 let rpc_url = self.config.chain.rpc_url.clone();
                 let chain_id = self.config.chain.chain_id;
-                let private_key = self.config.chain.private_key.clone();
+                let key_id = kms_config.key_id.clone();
                 async move {
-                    BlockchainClient::new(&rpc_url, chain_id, &private_key).await
+                    BlockchainClient::new(&rpc_url, chain_id, &key_id, &self.config).await
                 }
             },
             &retry_config,
-            "Blockchain connection",
+            "Blockchain connection (KMS)",
         ).await?;
         
         let block_number = client.get_block_number().await?;
         println!("📦 Current block: {}", block_number);
         
         // First check USDSC yield (reusing logic from claim_yield.rs)
-        let usdsc_contract = USDSCContract::new(Address::from_str(&self.config.contracts.usdsc_address)?, client.provider());
+        let usdsc_contract = USDSCContract::new(Address::from_str(&self.config.contracts.usdsc_address)?, client.provider(), client.clone());
         
         // Check pending yield (no retry for lightweight read operations)
         let pending_yield = usdsc_contract.get_pending_yield().await?;
@@ -66,25 +70,16 @@ impl DistributeRewardsJob {
         if let Some(redistributor_addr) = &self.config.contracts.reward_redistributor_address {
             // Create RewardRedistributor contract instance
             let redistributor_address = BlockchainClient::parse_address(redistributor_addr)?;
-            let redistributor_contract = RewardRedistributorContract::new(redistributor_address, client.provider());
+            let redistributor_contract = RewardRedistributorContract::new(redistributor_address, client.provider(), client.clone());
             
-            // Preview distribution with retry
-            let preview = execute_with_retry(
-                || {
-                    let contract = redistributor_contract.clone();
-                    async move {
-                        contract.preview_distribute().await
-                    }
-                },
-                &retry_config,
-                "Preview distribution",
-            ).await?;
+            // Preview distribution (no retry for lightweight read operations)
+            let preview = redistributor_contract.preview_distribute().await?;
             println!("📊 Distribution preview:");
             println!("   Could be minted: {}", preview.0);
             println!("   Fee to Startale: {}", preview.1);
             println!("   To Earn: {}", preview.2);
-            println!("   To On: {}", preview.3);
-            println!("   To Startale Extra: {}", preview.4);
+            println!("   To sUSDSC: {}", preview.3);
+            println!("   To Startale Treasury: {}", preview.4);
             
             if self.dry_run {
                 println!("✅ DRY RUN: Would call distribute() on RewardRedistributor");

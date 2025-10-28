@@ -4,6 +4,7 @@ mod blockchain;
 mod contracts;
 mod retry;
 mod transaction_monitor;
+mod kms_signer;
 
 use config::ChainConfig;
 use jobs::{ClaimYieldJob, DistributeRewardsJob};
@@ -23,26 +24,26 @@ struct Cli {
 enum Commands {
     ClaimYield {
         #[arg(long)]
-        chain_id: u64,
-        
-        #[arg(long)]
         config: String,
         
         #[arg(long)]
-        private_key: Option<String>,
+        kms_key_id: Option<String>,
+        
+        #[arg(long)]
+        aws_region: Option<String>,
         
         #[arg(long)]
         dry_run: bool,
     },
     DistributeRewards {
         #[arg(long)]
-        chain_id: u64,
-        
-        #[arg(long)]
         config: String,
         
         #[arg(long)]
-        private_key: Option<String>,
+        kms_key_id: Option<String>,
+        
+        #[arg(long)]
+        aws_region: Option<String>,
         
         #[arg(long)]
         dry_run: bool,
@@ -50,42 +51,40 @@ enum Commands {
 }
 
 
+fn setup_config(config_path: &str, kms_key_id: Option<String>, aws_region: Option<String>) -> Result<ChainConfig> {
+    let mut chain_config = ChainConfig::load(config_path)?;
+    
+    // Override KMS settings from CLI if provided
+    if let Some(key_id) = kms_key_id {
+        let region = aws_region.or_else(|| {
+            chain_config.kms.as_ref()
+                .and_then(|kms| kms.region.clone())
+        }).ok_or_else(|| anyhow::anyhow!(
+            "KMS region not specified. Use --aws-region or configure region in {}",
+            config_path
+        ))?;
+            
+        chain_config.kms = Some(crate::config::KmsSettings {
+            key_id,
+            region: Some(region),
+        });
+    }
+    
+    Ok(chain_config)
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::ClaimYield { chain_id, config, private_key, dry_run } => {
-            let mut chain_config = ChainConfig::load(&config)?;
-            
-            if let Some(pk) = private_key {
-                chain_config.chain.private_key = pk;
-            }
-
-            if chain_config.chain.chain_id != chain_id {
-                return Err(anyhow::anyhow!(
-                    "Chain ID mismatch: CLI={}, Config={}", 
-                    chain_id, chain_config.chain.chain_id
-                ));
-            }
-            
+        Commands::ClaimYield { config, kms_key_id, aws_region, dry_run } => {
+            let chain_config = setup_config(&config, kms_key_id, aws_region)?;
             let job = ClaimYieldJob::new(chain_config, dry_run);
             job.execute().await?;
         }
-        Commands::DistributeRewards { chain_id, config, private_key, dry_run } => {
-            let mut chain_config = ChainConfig::load(&config)?;
-            
-            if let Some(pk) = private_key {
-                chain_config.chain.private_key = pk;
-            }
-            
-            if chain_config.chain.chain_id != chain_id {
-                return Err(anyhow::anyhow!(
-                    "Chain ID mismatch: CLI={}, Config={}", 
-                    chain_id, chain_config.chain.chain_id
-                ));
-            }
-            
+        Commands::DistributeRewards { config, kms_key_id, aws_region, dry_run } => {
+            let chain_config = setup_config(&config, kms_key_id, aws_region)?;
             let job = DistributeRewardsJob::new(chain_config, dry_run);
             job.execute().await?;
         }

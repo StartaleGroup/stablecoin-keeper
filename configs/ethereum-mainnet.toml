@@ -1,0 +1,7 @@
+[chain]
+chain_id = 1
+rpc_url = "${ETH_RPC_URL}"
+
+[contracts]
+usdsc_address = "${ETH_USDSC_ADDRESS}"
+recipient_address = "${ETH_RECIPIENT_ADDRESS}"

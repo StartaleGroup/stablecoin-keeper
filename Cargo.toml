@@ -2,6 +2,7 @@
 name = "stablecoin-backend"
 version = "0.1.0"
 edition = "2021"
+default-run = "stablecoin-backend"
 
 [dependencies]
 # Async runtime
@@ -15,9 +16,7 @@ serde = { version = "1.0", features = ["derive"] }
 toml = "0.8"
 
 # Web3 (using correct Alloy version and features)
-alloy = { version = "1.0", features = ["full"] }
-alloy-signer = "1.0"
-alloy-signer-local = "1.0"
+alloy = { version = "1.0", features = ["full", "signer-aws"] }
 
 # Error handling
 anyhow = "1.0"
@@ -29,3 +28,11 @@ regex = "1.0"
 # Additional dependencies for manual RPC calls
 hex = "0.4"
 url = "2.5"
+
+# AWS KMS for secure signing
+aws-config = "1.0"
+aws-sdk-kms = "1.0"
+
+[[bin]]
+name = "get-kms-address"
+path = "scripts/get_kms_address.rs"

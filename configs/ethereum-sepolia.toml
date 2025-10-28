@@ -1,0 +1,10 @@
+[chain]
+chain_id = 11155111
+rpc_url = "${ETH_SEPOLIA_RPC_URL}"
+
+[contracts]
+usdsc_address = "${ETH_SEPOLIA_USDSC_ADDRESS}"
+recipient_address = "${ETH_SEPOLIA_RECIPIENT_ADDRESS}"
+reward_redistributor_address = "${ETH_SEPOLIA_REWARD_REDISTRIBUTOR_ADDRESS}"
+earn_vault_address = "${ETH_SEPOLIA_EARN_VAULT_ADDRESS}"
+susdsc_vault_address = "${ETH_SEPOLIA_SUSDSC_VAULT_ADDRESS}"

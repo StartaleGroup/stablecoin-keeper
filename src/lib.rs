@@ -4,6 +4,7 @@ pub mod blockchain;
 pub mod contracts;
 pub mod retry;
 pub mod transaction_monitor;
+pub mod kms_signer;
 
 pub use config::ChainConfig;
 pub use jobs::{ClaimYieldJob, DistributeRewardsJob};
