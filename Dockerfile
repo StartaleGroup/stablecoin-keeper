@@ -42,7 +42,6 @@ WORKDIR /app
 
 # Copy the binary from builder stage
 COPY --from=builder /app/target/release/stablecoin-backend /app/stablecoin-backend
-COPY --from=builder /app/target/release/get-kms-address /app/get-kms-address
 
 # Copy configs
 COPY --from=builder /app/configs ./configs
