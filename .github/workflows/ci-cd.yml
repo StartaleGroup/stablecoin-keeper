@@ -98,6 +98,13 @@ jobs:
     environment: ${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }}
     
     steps:
+    - name: Log in to Harbor
+      uses: docker/login-action@v3
+      with:
+        registry: ${{ secrets.HARBOR_REGISTRY }}
+        username: ${{ secrets.HARBOR_USERNAME }}
+        password: ${{ secrets.HARBOR_PASSWORD }}
+        
     - name: Run Trivy vulnerability scanner
       uses: aquasecurity/trivy-action@master
       with:
