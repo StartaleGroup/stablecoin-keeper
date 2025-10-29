@@ -6,8 +6,8 @@
 set -e
 
 # Configuration
-REGISTRY="${HARBOR_REGISTRY:-wu1skjk2.c1.de1.container-registry.ovh.net}"
-PROJECT="${HARBOR_PROJECT:-keeper}"
+REGISTRY="${HARBOR_REGISTRY}"
+PROJECT="${HARBOR_PROJECT}"
 IMAGE_NAME="vault-keeper"
 TAG="${1:-latest}"
 
@@ -45,26 +45,8 @@ echo -e "${YELLOW}📤 Pushing image to Harbor...${NC}"
 docker push ${REGISTRY}/${PROJECT}/${IMAGE_NAME}:${TAG}
 docker push ${REGISTRY}/${PROJECT}/${IMAGE_NAME}:latest
 
-# Deploy to Harbor (if using Kubernetes)
-if [ "$DEPLOY_TO_K8S" = "true" ]; then
-    echo -e "${YELLOW}🚀 Deploying to Kubernetes...${NC}"
-    
-    # Update the image tag in the deployment file
-    sed -i.bak "s|your-harbor-registry.com/your-project/vault-keeper:staging|${REGISTRY}/${PROJECT}/${IMAGE_NAME}:${TAG}|g" deploy/harbor-deployment.yml
-    
-    # Apply the deployment
-    kubectl apply -f deploy/harbor-deployment.yml
-    
-    # Wait for deployment to be ready
-    kubectl rollout status deployment/vault-keeper -n vault-keeper --timeout=300s
-    
-    echo -e "${GREEN}✅ Deployment completed successfully!${NC}"
-else
-    echo -e "${GREEN}✅ Image pushed to Harbor successfully!${NC}"
-    echo -e "${YELLOW}💡 To deploy to Kubernetes, run:${NC}"
-    echo "   export DEPLOY_TO_K8S=true"
-    echo "   ./scripts/deploy-to-harbor.sh ${TAG}"
-fi
+# Image pushed to Harbor successfully
+echo -e "${GREEN}✅ Image pushed to Harbor successfully!${NC}"
 
 # Cleanup
 echo -e "${YELLOW}🧹 Cleaning up local images...${NC}"
