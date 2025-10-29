@@ -50,6 +50,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: test
     if: github.event_name == 'push'
+    environment: staging
     
     steps:
     - name: Checkout code
@@ -93,6 +94,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: build-and-push
     if: github.event_name == 'push'
+    environment: staging
     
     steps:
     - name: Run Trivy vulnerability scanner
