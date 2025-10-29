@@ -1,6 +1,6 @@
+use alloy::network::Ethereum;
 use alloy::primitives::{B256, U256};
 use alloy::providers::Provider;
-use alloy::network::Ethereum;
 use anyhow::Result;
 use std::sync::Arc;
 use std::time::Duration;
@@ -31,7 +31,11 @@ pub struct TransactionMonitor {
 
 impl TransactionMonitor {
     #[allow(dead_code)] // Kept for backward compatibility
-    pub fn new(provider: Arc<dyn Provider<Ethereum>>, max_wait_time: Duration, poll_interval: Duration) -> Self {
+    pub fn new(
+        provider: Arc<dyn Provider<Ethereum>>,
+        max_wait_time: Duration,
+        poll_interval: Duration,
+    ) -> Self {
         Self {
             provider,
             max_wait_time,
@@ -40,10 +44,10 @@ impl TransactionMonitor {
             timeout_gas_used: U256::ZERO,
         }
     }
-    
+
     pub fn new_with_timeout_values(
-        provider: Arc<dyn Provider<Ethereum>>, 
-        max_wait_time: Duration, 
+        provider: Arc<dyn Provider<Ethereum>>,
+        max_wait_time: Duration,
         poll_interval: Duration,
         timeout_block_number: u64,
         timeout_gas_used: U256,
@@ -59,11 +63,11 @@ impl TransactionMonitor {
 
     pub async fn monitor_transaction(&self, tx_hash: B256) -> Result<TransactionReceipt> {
         println!("🔍 Monitoring transaction: {:?}", tx_hash);
-        
+
         let start_time = tokio::time::Instant::now();
         let overall_deadline = start_time + self.max_wait_time;
         let mut ticker = tokio::time::interval(self.poll_interval);
-        
+
         loop {
             tokio::select! {
                 _ = tokio::time::sleep_until(overall_deadline) => {
@@ -84,9 +88,9 @@ impl TransactionMonitor {
                             } else {
                                 TransactionStatus::Failed
                             };
-                            
+
                             println!("✅ Transaction confirmed: {:?} (Status: {:?})", tx_hash, status);
-                            
+
                             return Ok(TransactionReceipt {
                                 hash: tx_hash,
                                 block_number: receipt.block_number.unwrap_or(0),
@@ -105,6 +109,4 @@ impl TransactionMonitor {
             }
         }
     }
-    
 }
-

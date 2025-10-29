@@ -22,7 +22,12 @@ impl Default for RetryConfig {
 }
 
 impl RetryConfig {
-    pub fn new(max_attempts: u32, base_delay: Duration, max_delay: Duration, backoff_multiplier: f64) -> Self {
+    pub fn new(
+        max_attempts: u32,
+        base_delay: Duration,
+        max_delay: Duration,
+        backoff_multiplier: f64,
+    ) -> Self {
         Self {
             max_attempts,
             base_delay,
@@ -46,8 +51,11 @@ where
     let mut last_error = None;
 
     while attempt <= retry_config.max_attempts {
-        println!("🔄 {} attempt {}/{}", operation_name, attempt, retry_config.max_attempts);
-        
+        println!(
+            "🔄 {} attempt {}/{}",
+            operation_name, attempt, retry_config.max_attempts
+        );
+
         match operation().await {
             Ok(result) => {
                 println!("✅ {} succeeded on attempt {}", operation_name, attempt);
@@ -55,8 +63,13 @@ where
             }
             Err(e) => {
                 last_error = Some(e);
-                println!("❌ {} failed on attempt {}: {}", operation_name, attempt, last_error.as_ref().unwrap());
-                
+                println!(
+                    "❌ {} failed on attempt {}: {}",
+                    operation_name,
+                    attempt,
+                    last_error.as_ref().unwrap()
+                );
+
                 if attempt < retry_config.max_attempts {
                     let delay = calculate_delay(attempt, retry_config);
                     println!("⏳ Waiting {:?} before retry...", delay);
@@ -64,22 +77,22 @@ where
                 }
             }
         }
-        
+
         attempt += 1;
     }
 
     Err(anyhow::anyhow!(
-        "{} failed after {} attempts. Last error: {}", 
-        operation_name, 
+        "{} failed after {} attempts. Last error: {}",
+        operation_name,
         retry_config.max_attempts,
         last_error.unwrap()
     ))
 }
 
 fn calculate_delay(attempt: u32, config: &RetryConfig) -> Duration {
-    let exponential_delay = config.base_delay.as_secs_f64() * 
-        config.backoff_multiplier.powi((attempt - 1) as i32);
-    
+    let exponential_delay =
+        config.base_delay.as_secs_f64() * config.backoff_multiplier.powi((attempt - 1) as i32);
+
     let delay_seconds = exponential_delay.min(config.max_delay.as_secs_f64());
     Duration::from_secs_f64(delay_seconds)
 }
@@ -93,7 +106,7 @@ mod tests {
     async fn test_retry_success_on_first_attempt() {
         let config = RetryConfig::default();
         let call_count = AtomicU32::new(0);
-        
+
         let result = execute_with_retry(
             || {
                 let count = call_count.fetch_add(1, Ordering::SeqCst);
@@ -107,8 +120,9 @@ mod tests {
             },
             &config,
             "test_operation",
-        ).await;
-        
+        )
+        .await;
+
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "success");
         assert_eq!(call_count.load(Ordering::SeqCst), 1);
@@ -118,7 +132,7 @@ mod tests {
     async fn test_retry_success_on_second_attempt() {
         let config = RetryConfig::new(3, Duration::from_millis(10), Duration::from_secs(1), 2.0);
         let call_count = AtomicU32::new(0);
-        
+
         let result = execute_with_retry(
             || {
                 let count = call_count.fetch_add(1, Ordering::SeqCst);
@@ -132,8 +146,9 @@ mod tests {
             },
             &config,
             "test_operation",
-        ).await;
-        
+        )
+        .await;
+
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "success");
         assert_eq!(call_count.load(Ordering::SeqCst), 2);
@@ -143,18 +158,17 @@ mod tests {
     async fn test_retry_failure_after_max_attempts() {
         let config = RetryConfig::new(2, Duration::from_millis(10), Duration::from_secs(1), 2.0);
         let call_count = AtomicU32::new(0);
-        
+
         let result = execute_with_retry(
             || {
                 call_count.fetch_add(1, Ordering::SeqCst);
-                async move {
-                    Err::<&str, anyhow::Error>(anyhow::anyhow!("always fails"))
-                }
+                async move { Err::<&str, anyhow::Error>(anyhow::anyhow!("always fails")) }
             },
             &config,
             "test_operation",
-        ).await;
-        
+        )
+        .await;
+
         assert!(result.is_err());
         assert_eq!(call_count.load(Ordering::SeqCst), 2);
     }
