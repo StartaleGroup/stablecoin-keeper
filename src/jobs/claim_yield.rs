@@ -1,5 +1,5 @@
-use crate::config::ChainConfig;
 use crate::blockchain::BlockchainClient;
+use crate::config::ChainConfig;
 use crate::contracts::usdsc::USDSCContract;
 use crate::retry::{execute_with_retry, RetryConfig};
 use crate::transaction_monitor::{TransactionMonitor, TransactionStatus};
@@ -17,10 +17,10 @@ impl ClaimYieldJob {
     pub fn new(config: ChainConfig, dry_run: bool) -> Self {
         Self { config, dry_run }
     }
-    
+
     pub async fn execute(&self) -> Result<()> {
         println!("🔍 ClaimYield Job Starting...");
-        
+
         let retry_config = RetryConfig::new(
             self.config.retry.max_attempts,
             Duration::from_secs(self.config.retry.base_delay_seconds),
@@ -31,7 +31,7 @@ impl ClaimYieldJob {
         // KMS signing is required
         let kms_config = self.config.kms.as_ref()
             .ok_or_else(|| anyhow::anyhow!("KMS configuration is required. Please configure KMS settings in your config file or via CLI."))?;
-            
+
         println!("🔐 Using KMS signing with key: {}", kms_config.key_id);
         let client = execute_with_retry(
             || {
@@ -45,35 +45,41 @@ impl ClaimYieldJob {
             &retry_config,
             "Blockchain connection (KMS)",
         ).await?;
-        
-        let usdsc_contract = USDSCContract::new(Address::from_str(&self.config.contracts.usdsc_address)?, client.provider(), client.clone());
-        
+
+        let usdsc_contract = USDSCContract::new(
+            Address::from_str(&self.config.contracts.usdsc_address)?,
+            client.provider(),
+            client.clone(),
+        );
+
         let pending_yield = usdsc_contract.get_pending_yield().await?;
         println!("💰 Pending yield: {}", pending_yield);
-        
+
         let min_threshold = U256::from_str(&self.config.thresholds.min_yield_threshold)?;
-        
+
         if pending_yield >= min_threshold {
-            println!("💰 Yield above threshold ({} >= {}), claiming...", pending_yield, min_threshold);
-            
+            println!(
+                "💰 Yield above threshold ({} >= {}), claiming...",
+                pending_yield, min_threshold
+            );
+
             if self.dry_run {
                 println!("✅ DRY RUN: Would claim yield transaction");
                 return Ok(());
             }
-            
+
             let tx_hash = execute_with_retry(
                 || {
                     let contract = usdsc_contract.clone();
                     let value_wei = self.config.transaction.value_wei.clone();
-                    async move {
-                        contract.claim_yield(&value_wei).await
-                    }
+                    async move { contract.claim_yield(&value_wei).await }
                 },
                 &retry_config,
                 "Claim yield transaction",
-            ).await?;
+            )
+            .await?;
             println!("✅ Claim transaction sent: {:?}", tx_hash);
-            
+
             let timeout_gas_used = U256::from_str(&self.config.monitoring.timeout_gas_used)?;
             let monitor = TransactionMonitor::new_with_timeout_values(
                 client.provider(),
@@ -82,11 +88,14 @@ impl ClaimYieldJob {
                 self.config.monitoring.timeout_block_number,
                 timeout_gas_used,
             );
-            
+
             let receipt = monitor.monitor_transaction(tx_hash).await?;
             match receipt.status {
                 TransactionStatus::Success => {
-                    println!("🎉 Claim transaction confirmed in block {}", receipt.block_number);
+                    println!(
+                        "🎉 Claim transaction confirmed in block {}",
+                        receipt.block_number
+                    );
                     println!("⛽ Gas used: {}", receipt.gas_used);
                 }
                 TransactionStatus::Failed => {
@@ -99,9 +108,12 @@ impl ClaimYieldJob {
                 }
             }
         } else {
-            println!("⏳ Yield below threshold ({} < {}), skipping claim", pending_yield, min_threshold);
+            println!(
+                "⏳ Yield below threshold ({} < {}), skipping claim",
+                pending_yield, min_threshold
+            );
         }
-        
+
         Ok(())
     }
 }

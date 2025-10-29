@@ -1,2 +1,2 @@
-pub mod usdsc;
 pub mod reward_redistributor;
+pub mod usdsc;
