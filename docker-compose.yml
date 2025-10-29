@@ -1,0 +1,32 @@
+services:
+  vault-keeper:
+    build: .
+    image: wu1skjk2.c1.de1.container-registry.ovh.net/keeper/vault-keeper:latest
+    container_name: vault-keeper
+    env_file:
+      - .env
+    environment:
+      - AWS_REGION=${AWS_REGION:-ap-northeast-1}
+      - RUST_LOG=${RUST_LOG:-info}
+      - KMS_KEY_ID=${KMS_KEY_ID}
+      - ETH_RPC_URL=${ETH_RPC_URL}
+      - ETH_USDSC_ADDRESS=${ETH_USDSC_ADDRESS}
+      - ETH_RECIPIENT_ADDRESS=${ETH_RECIPIENT_ADDRESS}
+      - SONEIUM_RPC_URL=${SONEIUM_RPC_URL}
+      - SONEIUM_USDSC_ADDRESS=${SONEIUM_USDSC_ADDRESS}
+      - SONEIUM_REWARD_REDISTRIBUTOR_ADDRESS=${SONEIUM_REWARD_REDISTRIBUTOR_ADDRESS}
+      - SONEIUM_EARN_VAULT_ADDRESS=${SONEIUM_EARN_VAULT_ADDRESS}
+      - SONEIUM_SUSDSC_VAULT_ADDRESS=${SONEIUM_SUSDSC_VAULT_ADDRESS}
+      - HARBOR_USERNAME=${HARBOR_USERNAME}
+      - HARBOR_PASSWORD=${HARBOR_PASSWORD}
+    volumes:
+      - ./configs:/app/configs:ro
+    restart: unless-stopped
+    networks:
+      - vault-keeper-network
+
+  # Simple setup - no monitoring needed for now
+
+networks:
+  vault-keeper-network:
+    driver: bridge
