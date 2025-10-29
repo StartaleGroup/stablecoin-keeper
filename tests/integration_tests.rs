@@ -17,6 +17,12 @@ use std::time::Duration;
 
 #[tokio::test]
 async fn test_kms_signer_integration() -> Result<()> {
+    // Skip this test if AWS credentials are not available (e.g., in CI)
+    if std::env::var("AWS_ACCESS_KEY_ID").is_err() && std::env::var("AWS_PROFILE").is_err() {
+        println!("⏭️  Skipping KMS signer integration test - no AWS credentials");
+        return Ok(());
+    }
+    
     // Test that KMS signer is properly integrated with provider
     let test_rpc_url = "https://eth.llamarpc.com"; // Public RPC for testing
     let test_chain_id = 1u64;
@@ -107,6 +113,12 @@ async fn test_retry_logic_failure() -> Result<()> {
 
 #[tokio::test]
 async fn test_transaction_monitor_creation() -> Result<()> {
+    // Skip this test if AWS credentials are not available (e.g., in CI)
+    if std::env::var("AWS_ACCESS_KEY_ID").is_err() && std::env::var("AWS_PROFILE").is_err() {
+        println!("⏭️  Skipping transaction monitor creation test - no AWS credentials");
+        return Ok(());
+    }
+    
     // Test transaction monitor creation and basic functionality
     let test_rpc_url = "https://eth.llamarpc.com";
     let test_chain_id = 1u64;
@@ -248,6 +260,12 @@ region = "us-east-1"
 
 #[tokio::test]
 async fn test_chain_id_validation() -> Result<()> {
+    // Skip this test if AWS credentials are not available (e.g., in CI)
+    if std::env::var("AWS_ACCESS_KEY_ID").is_err() && std::env::var("AWS_PROFILE").is_err() {
+        println!("⏭️  Skipping chain ID validation test - no AWS credentials");
+        return Ok(());
+    }
+    
     // Test chain ID validation
     let test_rpc_url = "https://eth.llamarpc.com";
     let expected_chain_id = 1u64;
@@ -299,6 +317,12 @@ async fn test_job_creation() -> Result<()> {
 
 #[tokio::test]
 async fn test_contract_instantiation() -> Result<()> {
+    // Skip this test if AWS credentials are not available (e.g., in CI)
+    if std::env::var("AWS_ACCESS_KEY_ID").is_err() && std::env::var("AWS_PROFILE").is_err() {
+        println!("⏭️  Skipping contract instantiation test - no AWS credentials");
+        return Ok(());
+    }
+    
     // Test that contract instances can be created
     let test_rpc_url = "https://eth.llamarpc.com";
     let test_chain_id = 1u64;
