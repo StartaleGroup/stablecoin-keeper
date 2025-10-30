@@ -1,4 +1,4 @@
-# Vault Keeper Service
+# Stablecoin Keeper Service
 
 Automated USDSC yield distribution keeper for Ethereum and Soneium networks.
 
