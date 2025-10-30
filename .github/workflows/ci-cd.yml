@@ -104,6 +104,12 @@ jobs:
         image-ref: ${{ secrets.HARBOR_REGISTRY }}/${{ secrets.HARBOR_PROJECT }}/stablecoin-keeper:${{ github.ref_name }}
         format: 'sarif'
         output: 'trivy-results.sarif'
+
+    - name: Debug show SARIF and git status
+      run: |
+        ls -la
+        [ -d .git ] && echo ".git present" || echo "NO .git DIR"
+        [ -f trivy-results.sarif ] && echo "SARIF present" || echo "SARIF MISSING"
         
     - name: Upload Trivy scan results
       uses: github/codeql-action/upload-sarif@v3
