@@ -1,16 +1,13 @@
-name: CI/CD Pipeline
+name: CI Pipeline
 
 on:
   push:
     branches: [ main, develop ]
   pull_request:
     branches: [ main, develop ]
-  schedule:
-    # Run daily at 2 AM UTC to ensure everything is working
-    - cron: '0 2 * * *'
 
 env:
-  IMAGE_NAME: vault-keeper
+  IMAGE_NAME: stablecoin-keeper
 
 jobs:
   test:
@@ -40,9 +37,6 @@ jobs:
         cargo test --verbose
         cargo clippy -- -D warnings
         cargo fmt -- --check
-        
-    - name: Build
-      run: cargo build --release
 
   build-and-push:
     name: Build and Push to Harbor
@@ -69,7 +63,7 @@ jobs:
       id: meta
       uses: docker/metadata-action@v5
       with:
-        images: ${{ secrets.HARBOR_REGISTRY }}/${{ secrets.HARBOR_PROJECT }}/${{ env.IMAGE_NAME }}
+        images: ${{ secrets.HARBOR_REGISTRY }}/${{ secrets.HARBOR_PROJECT }}/stablecoin-keeper
         tags: |
           type=ref,event=branch
           type=ref,event=pr
@@ -107,7 +101,7 @@ jobs:
     - name: Run Trivy vulnerability scanner
       uses: aquasecurity/trivy-action@master
       with:
-        image-ref: ${{ secrets.HARBOR_REGISTRY }}/${{ secrets.HARBOR_PROJECT }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}
+        image-ref: ${{ secrets.HARBOR_REGISTRY }}/${{ secrets.HARBOR_PROJECT }}/stablecoin-keeper:${{ github.ref_name }}
         format: 'sarif'
         output: 'trivy-results.sarif'
         

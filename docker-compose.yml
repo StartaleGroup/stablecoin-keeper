@@ -1,8 +1,8 @@
 services:
-  vault-keeper:
+  stablecoin-keeper:
     build: .
-    image: ${HARBOR_REGISTRY}/${HARBOR_PROJECT}/vault-keeper:latest
-    container_name: vault-keeper
+    image: ${HARBOR_REGISTRY}/${HARBOR_PROJECT}/stablecoin-keeper:latest
+    container_name: stablecoin-keeper
     env_file:
       - .env
     environment:

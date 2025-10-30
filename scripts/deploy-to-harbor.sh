@@ -8,7 +8,7 @@ set -e
 # Configuration
 REGISTRY="${HARBOR_REGISTRY}"
 PROJECT="${HARBOR_PROJECT}"
-IMAGE_NAME="vault-keeper"
+IMAGE_NAME="stablecoin-keeper"
 TAG="${1:-latest}"
 
 # Colors for output
