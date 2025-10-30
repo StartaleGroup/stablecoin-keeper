@@ -1,0 +1,50 @@
+services:
+  stablecoin-keeper:
+    build: .
+    image: ${HARBOR_REGISTRY}/${HARBOR_PROJECT}/stablecoin-keeper:latest
+    container_name: stablecoin-keeper
+    env_file:
+      - .env
+    environment:
+      # Core AWS/KMS configuration
+      - AWS_REGION=${AWS_REGION}
+      - KMS_KEY_ID=${KMS_KEY_ID}
+      - RUST_LOG=${RUST_LOG:-info}
+      
+      # Ethereum Mainnet
+      - ETH_RPC_URL=${ETH_RPC_URL}
+      - ETH_USDSC_ADDRESS=${ETH_USDSC_ADDRESS}
+      - ETH_RECIPIENT_ADDRESS=${ETH_RECIPIENT_ADDRESS}
+      
+      # Ethereum Sepolia
+      - ETH_SEPOLIA_RPC_URL=${ETH_SEPOLIA_RPC_URL}
+      - ETH_SEPOLIA_USDSC_ADDRESS=${ETH_SEPOLIA_USDSC_ADDRESS}
+      - ETH_SEPOLIA_RECIPIENT_ADDRESS=${ETH_SEPOLIA_RECIPIENT_ADDRESS}
+      - ETH_SEPOLIA_REWARD_REDISTRIBUTOR_ADDRESS=${ETH_SEPOLIA_REWARD_REDISTRIBUTOR_ADDRESS}
+      - ETH_SEPOLIA_EARN_VAULT_ADDRESS=${ETH_SEPOLIA_EARN_VAULT_ADDRESS}
+      - ETH_SEPOLIA_SUSDSC_VAULT_ADDRESS=${ETH_SEPOLIA_SUSDSC_VAULT_ADDRESS}
+      
+      # Soneium Mainnet
+      - SONEIUM_RPC_URL=${SONEIUM_RPC_URL}
+      - SONEIUM_USDSC_ADDRESS=${SONEIUM_USDSC_ADDRESS}
+      - SONEIUM_REWARD_REDISTRIBUTOR_ADDRESS=${SONEIUM_REWARD_REDISTRIBUTOR_ADDRESS}
+      - SONEIUM_EARN_VAULT_ADDRESS=${SONEIUM_EARN_VAULT_ADDRESS}
+      - SONEIUM_SUSDSC_VAULT_ADDRESS=${SONEIUM_SUSDSC_VAULT_ADDRESS}
+      
+      # Soneium Minato
+      - SONEIUM_MINATO_RPC_URL=${SONEIUM_MINATO_RPC_URL}
+      - SONEIUM_MINATO_USDSC_ADDRESS=${SONEIUM_MINATO_USDSC_ADDRESS}
+      - SONEIUM_MINATO_REWARD_REDISTRIBUTOR_ADDRESS=${SONEIUM_MINATO_REWARD_REDISTRIBUTOR_ADDRESS}
+      - SONEIUM_MINATO_EARN_VAULT_ADDRESS=${SONEIUM_MINATO_EARN_VAULT_ADDRESS}
+      - SONEIUM_MINATO_SUSDSC_VAULT_ADDRESS=${SONEIUM_MINATO_SUSDSC_VAULT_ADDRESS}
+    volumes:
+      - ./configs:/app/configs:ro
+    restart: unless-stopped
+    networks:
+      - vault-keeper-network
+
+  # Simple setup - no monitoring needed for now
+
+networks:
+  vault-keeper-network:
+    driver: bridge

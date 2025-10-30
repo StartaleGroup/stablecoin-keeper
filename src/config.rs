@@ -1,8 +1,8 @@
-use serde::{Deserialize, Serialize};
 use anyhow::Result;
-use std::fs;
-use std::env;
 use regex::Regex;
+use serde::{Deserialize, Serialize};
+use std::env;
+use std::fs;
 use toml::map::Map;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -67,23 +67,23 @@ impl ChainConfig {
     pub fn load(path: &str) -> Result<Self> {
         // Load .env file if it exists
         dotenv::dotenv().ok();
-        
+
         // Load common config first
         let common_content = Self::load_common_config()?;
-        
+
         // Load specific config
         let specific_content = fs::read_to_string(path)?;
-        
+
         // Merge common and specific configs
         let merged_content = Self::merge_configs(common_content, specific_content)?;
-        
+
         // Simple environment variable substitution
         let content = Self::substitute_env_vars(merged_content)?;
-        
+
         let config: ChainConfig = toml::from_str(&content)?;
         Ok(config)
     }
-    
+
     fn load_common_config() -> Result<String> {
         let common_path = "configs/common.toml";
         match fs::read_to_string(common_path) {
@@ -94,43 +94,49 @@ impl ChainConfig {
             }
         }
     }
-    
+
     fn merge_configs(common: String, specific: String) -> Result<String> {
         if common.is_empty() {
             return Ok(specific);
         }
-        
+
         // Parse both configs and merge them properly
         let common_toml: toml::Value = toml::from_str(&common)?;
         let specific_toml: toml::Value = toml::from_str(&specific)?;
-        
+
         // Merge specific config into common config (specific overrides common)
         let merged = Self::merge_toml_values(common_toml, specific_toml);
-        
+
         // Convert back to TOML string
         let merged_toml = toml::to_string_pretty(&merged)?;
         Ok(merged_toml)
     }
-    
+
     fn merge_toml_values(mut base: toml::Value, override_val: toml::Value) -> toml::Value {
         match (&mut base, override_val) {
             (toml::Value::Table(base_map), toml::Value::Table(override_map)) => {
                 for (key, value) in override_map {
-                    base_map.insert(key.clone(), Self::merge_toml_values(
-                        base_map.get(&key).cloned().unwrap_or(toml::Value::Table(Map::new())),
-                        value
-                    ));
+                    base_map.insert(
+                        key.clone(),
+                        Self::merge_toml_values(
+                            base_map
+                                .get(&key)
+                                .cloned()
+                                .unwrap_or(toml::Value::Table(Map::new())),
+                            value,
+                        ),
+                    );
                 }
                 base
             }
             (_, override_val) => override_val,
         }
     }
-    
+
     fn substitute_env_vars(content: String) -> Result<String> {
         let re = Regex::new(r"\$\{([A-Z_][A-Z0-9_]*)\}")?;
         let mut result = content.clone();
-        
+
         for cap in re.captures_iter(&content) {
             let var_name = &cap[1];
             if let Ok(value) = env::var(var_name) {
@@ -138,7 +144,7 @@ impl ChainConfig {
                 result = result.replace(&placeholder, &value);
             }
         }
-        
+
         Ok(result)
     }
 }
