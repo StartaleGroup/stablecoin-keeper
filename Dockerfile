@@ -52,12 +52,5 @@ RUN chown -R vaultkeeper:vaultkeeper /app
 # Switch to app user
 USER vaultkeeper
 
-# Expose port (if needed for health checks)
-EXPOSE 8080
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD /app/stablecoin-backend --help || exit 1
-
 # Default command
-CMD ["/app/stablecoin-backend"]
+ENTRYPOINT ["/app/stablecoin-backend"]
