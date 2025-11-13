@@ -12,7 +12,6 @@ on:
 
 env:
   IMAGE_NAME: stablecoin-keeper
-  TAG_NAME: ${{ github.ref_name }}
 
 jobs:
   test:
@@ -66,19 +65,12 @@ jobs:
         
     - name: Extract metadata
       id: meta
-      uses: docker/metadata-action@v5
+      uses: docker/build-push-action@v6
       with:
         images: ${{ secrets.HARBOR_REGISTRY }}/${{ secrets.HARBOR_PROJECT }}/stablecoin-keeper
-        tags: |
-          type=ref,event=branch
-          type=ref,event=pr
-          type=sha,prefix={{branch}}-
-          type=raw,value=latest,enable={{is_default_branch}}
-          type=raw,value=staging,enable={{is_default_branch}}
-          type=raw,value=production,enable={{is_default_branch}}
           
     - name: Build and push Docker image
-      uses: docker/build-push-action@v5
+      uses: docker/build-push-action@v6
       with:
         context: .
         platforms: linux/amd64,linux/arm64
