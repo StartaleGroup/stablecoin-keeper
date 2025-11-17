@@ -133,7 +133,7 @@ impl RewardRedistributorContract {
         let decoded = IRewardRedistributor::lastSnapshotTimestampCall::abi_decode_returns(&result)?;
         Ok(decoded)
     }
-    
+
     pub async fn last_snapshot_block_number(&self) -> Result<U256> {
         let call = IRewardRedistributor::lastSnapshotBlockNumberCall {};
         let data: Vec<u8> = call.abi_encode();
@@ -147,7 +147,8 @@ impl RewardRedistributorContract {
             })
             .await?;
 
-        let decoded = IRewardRedistributor::lastSnapshotBlockNumberCall::abi_decode_returns(&result)?;
+        let decoded =
+            IRewardRedistributor::lastSnapshotBlockNumberCall::abi_decode_returns(&result)?;
         Ok(decoded)
     }
 
