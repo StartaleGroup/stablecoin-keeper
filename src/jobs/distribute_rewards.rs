@@ -19,6 +19,33 @@ impl DistributeRewardsJob {
         Self { config, dry_run }
     }
 
+    async fn wait_for_next_block(client: &BlockchainClient) -> Result<()> {
+        let initial_block = client.get_block_number().await?;
+        println!("⏳ Waiting for next block (current: {})...", initial_block);
+
+        loop {
+            // Todo: This is specific to Soneium Block time, Need to this to config later
+            tokio::time::sleep(Duration::from_secs(3)).await; // Block time is 2 seconds , keeping a buffer of 1 second
+            let current_block = client.get_block_number().await?;
+            if current_block > initial_block {
+                println!("✅ New block confirmed: {}", current_block);
+                return Ok(());
+            }
+        }
+    }
+
+    async fn get_current_timestamp(client: &BlockchainClient) -> Result<U256> {
+        let block_number = client.get_block_number().await?;
+        let block = client
+            .provider()
+            .get_block_by_number(block_number.into())
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("Block not found"))?;
+
+        let timestamp = block.header.timestamp;
+        Ok(U256::from(timestamp))
+    }
+
     pub async fn execute(&self) -> Result<()> {
         println!("🔍 Distribute Rewards Job Starting...");
 
@@ -86,7 +113,132 @@ impl DistributeRewardsJob {
                 client.clone(),
             );
 
-            // Preview distribution (no retry for lightweight read operations)
+            // ===== STEP 1: Check snapshot state =====
+            println!("📸 Checking snapshot state...");
+
+            let (
+                last_snapshot_timestamp,
+                last_snapshot_block,
+                max_age_seconds,
+                current_block,
+                current_timestamp,
+            ) = tokio::try_join!(
+                redistributor_contract.last_snapshot_timestamp(),
+                redistributor_contract.last_snapshot_block_number(),
+                redistributor_contract.snapshot_max_age(),
+                client.get_block_number(),
+                Self::get_current_timestamp(&client),
+            )?;
+
+            println!("   Last snapshot timestamp: {}", last_snapshot_timestamp);
+            println!("   Last snapshot block: {}", last_snapshot_block);
+            println!("   Max age: {}s", max_age_seconds);
+            println!("   Current block: {}", current_block);
+            println!("   Current timestamp: {}", current_timestamp);
+
+            let current_block_u256 = U256::from(current_block);
+            let needs_snapshot =
+                if last_snapshot_timestamp == U256::ZERO || last_snapshot_block == U256::ZERO {
+                    println!("   ⚠️  No snapshot exists");
+                    true
+                } else {
+                    // Check if snapshot is too old (time-based)
+                    let snapshot_age = current_timestamp.saturating_sub(last_snapshot_timestamp);
+                    if snapshot_age > max_age_seconds {
+                        println!(
+                            "   ⚠️  Snapshot expired (age {}s > max {}s)",
+                            snapshot_age, max_age_seconds
+                        );
+                        true
+                    } else {
+                        // Check if snapshot is in same block (block-based)
+                        if current_block_u256 <= last_snapshot_block {
+                            println!(
+                            "   ⚠️  Snapshot in same or future block (current {} <= snapshot {})",
+                            current_block, last_snapshot_block
+                        );
+                            // We'll wait for next block below
+                            false
+                        } else {
+                            println!(
+                                "   ✅ Snapshot is valid (block {} > {}, age {}s <= max {}s)",
+                                current_block, last_snapshot_block, snapshot_age, max_age_seconds
+                            );
+                            false
+                        }
+                    }
+                };
+
+            // Track if we need to wait for a block (either after snapshot or if snapshot is in same block)
+            let mut needs_block_wait = false;
+
+            // ===== STEP 2: Take snapshot if needed =====
+            if needs_snapshot {
+                println!("📸 Taking new snapshot...");
+
+                if self.dry_run {
+                    println!("✅ DRY RUN: Would call snapshotSusdscTVL()");
+                    return Ok(());
+                }
+
+                let snapshot_tx = execute_with_retry(
+                    || {
+                        let contract = redistributor_contract.clone();
+                        let value_wei = self.config.transaction.value_wei.clone();
+                        async move { contract.snapshot_susdsc_tvl(&value_wei).await }
+                    },
+                    &retry_config,
+                    "Snapshot transaction",
+                )
+                .await?;
+
+                println!("✅ Snapshot transaction sent: {:?}", snapshot_tx);
+
+                // Monitor snapshot transaction
+                let timeout_gas_used = U256::from_str(&self.config.monitoring.timeout_gas_used)?;
+                let monitor = TransactionMonitor::new_with_timeout_values(
+                    client.provider(),
+                    Duration::from_secs(self.config.monitoring.transaction_timeout_seconds),
+                    Duration::from_secs(self.config.monitoring.poll_interval_seconds),
+                    self.config.monitoring.timeout_block_number,
+                    timeout_gas_used,
+                );
+
+                let receipt = monitor.monitor_transaction(snapshot_tx).await?;
+                match receipt.status {
+                    TransactionStatus::Success => {
+                        println!("🎉 Snapshot confirmed in block {}", receipt.block_number);
+
+                        // Verify snapshot was recorded
+                        let new_snapshot_block =
+                            redistributor_contract.last_snapshot_block_number().await?;
+                        println!("📸 New snapshot block: {}", new_snapshot_block);
+
+                        // Mark that we need to wait for next block after snapshot
+                        needs_block_wait = true;
+                    }
+                    TransactionStatus::Failed => {
+                        return Err(anyhow::anyhow!("Snapshot transaction failed"));
+                    }
+                    TransactionStatus::Timeout => {
+                        return Err(anyhow::anyhow!("Snapshot transaction monitoring timeout"));
+                    }
+                }
+            } else {
+                // Check if snapshot is in same block (we already checked this above, but need to set flag)
+                if current_block_u256 <= last_snapshot_block {
+                    needs_block_wait = true;
+                }
+            }
+
+            // Wait for next block if needed (after snapshot or if snapshot was in same block)
+            if needs_block_wait {
+                println!("⏳ Waiting for next block before distributing...");
+                Self::wait_for_next_block(&client).await?;
+            }
+
+            // ===== STEP 4: Preview distribution =====
+            println!("📊 Previewing distribution...");
             let preview = redistributor_contract.preview_distribute().await?;
             println!("📊 Distribution preview:");
             println!("   Could be minted: {}", preview.0);
@@ -100,7 +252,7 @@ impl DistributeRewardsJob {
                 return Ok(());
             }
 
-            // Execute distribute transaction with retry
+            // ===== STEP 6: Execute distribute transaction =====
             println!("🚀 Calling distribute() on RewardRedistributor...");
             let tx_hash = execute_with_retry(
                 || {
