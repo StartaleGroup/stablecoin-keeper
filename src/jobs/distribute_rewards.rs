@@ -116,11 +116,19 @@ impl DistributeRewardsJob {
             // ===== STEP 1: Check snapshot state =====
             println!("📸 Checking snapshot state...");
 
-            let last_snapshot_timestamp = redistributor_contract.last_snapshot_timestamp().await?;
-            let last_snapshot_block = redistributor_contract.last_snapshot_block_number().await?;
-            let max_age_seconds = redistributor_contract.snapshot_max_age().await?;
-            let current_block = client.get_block_number().await?;
-            let current_timestamp = Self::get_current_timestamp(&client).await?;
+            let (
+                last_snapshot_timestamp,
+                last_snapshot_block,
+                max_age_seconds,
+                current_block,
+                current_timestamp,
+            ) = tokio::try_join!(
+                redistributor_contract.last_snapshot_timestamp(),
+                redistributor_contract.last_snapshot_block_number(),
+                redistributor_contract.snapshot_max_age(),
+                client.get_block_number(),
+                Self::get_current_timestamp(&client),
+            )?;
 
             println!("   Last snapshot timestamp: {}", last_snapshot_timestamp);
             println!("   Last snapshot block: {}", last_snapshot_block);
