@@ -10,6 +10,7 @@ use url::Url;
 #[derive(Clone)]
 pub struct BlockchainClient {
     provider: Arc<dyn Provider<Ethereum>>,
+    keeper_address: Address,
 }
 
 impl BlockchainClient {
@@ -52,6 +53,7 @@ impl BlockchainClient {
 
         Ok(Self {
             provider: Arc::new(provider),
+            keeper_address: kms_address,
         })
     }
 
@@ -77,5 +79,9 @@ impl BlockchainClient {
         let tx_hash = *pending.tx_hash();
         println!("✅ Transaction sent: {:?}", tx_hash);
         Ok(tx_hash)
+    }
+
+    pub fn keeper_address(&self) -> Address {
+        self.keeper_address
     }
 }

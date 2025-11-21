@@ -1,3 +1,4 @@
 /target
 .env
 TECHNICAL_DESIGN.md
+.DS_Store
