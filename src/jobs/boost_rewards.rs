@@ -104,9 +104,32 @@ impl BoostRewardsJob {
         println!("   Token: {} ({} decimals)", token_symbol, token_decimals);
 
         // 3. Calculate daily amount
-        let total_amount_wei = U256::from_str(&self.total_amount)?
-            .checked_mul(U256::from(10_u64.pow(token_decimals as u32)))
-            .ok_or_else(|| anyhow::anyhow!("Amount overflow"))?;
+        // Parse amount - supports both integer and decimal formats (e.g., "1000" or "100.232")
+        let total_amount_wei = if self.total_amount.contains('.') {
+            // Decimal format: parse as f64, then convert to wei
+            let amount_f64: f64 = self.total_amount.parse()
+                .map_err(|_| anyhow::anyhow!("Invalid decimal amount format: {}", self.total_amount))?;
+            
+            if amount_f64 < 0.0 {
+                return Err(anyhow::anyhow!("Amount cannot be negative: {}", self.total_amount));
+            }
+            
+            let multiplier = 10_f64.powi(token_decimals as i32);
+            let amount_wei_f64 = amount_f64 * multiplier;
+            
+            // Check for overflow
+            if amount_wei_f64 > u128::MAX as f64 {
+                return Err(anyhow::anyhow!("Amount too large: {}", self.total_amount));
+            }
+            
+            // Convert to U256 (round to nearest integer)
+            U256::from(amount_wei_f64.round() as u128)
+        } else {
+            // Integer format: parse as U256, then multiply by decimals
+            U256::from_str(&self.total_amount)?
+                .checked_mul(U256::from(10_u64.pow(token_decimals as u32)))
+                .ok_or_else(|| anyhow::anyhow!("Amount overflow"))?
+        };
 
         let daily_amount_wei = total_amount_wei
             .checked_div(U256::from(self.duration_days))
