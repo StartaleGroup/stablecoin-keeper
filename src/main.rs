@@ -56,7 +56,7 @@ enum Commands {
         token_address: String,
         
         #[arg(long)]
-        total_amount: String,
+        total_amount: f64,
         
         #[arg(long)]
         start_date: String,

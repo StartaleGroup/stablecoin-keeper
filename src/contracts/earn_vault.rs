@@ -1,10 +1,11 @@
-use crate::blockchain::BlockchainClient;
 use alloy::primitives::{Address, TxKind, B256, U256};
+use alloy::providers::Provider;
 use alloy::rpc::types::{TransactionInput, TransactionRequest};
 use alloy::sol;
 use alloy::sol_types::SolCall;
 use anyhow::Result;
 use std::sync::Arc;
+use alloy::network::Ethereum;
 
 sol! {
     #[sol(rpc)]
@@ -16,18 +17,17 @@ sol! {
 #[derive(Clone)]
 pub struct EarnVaultContract {
     address: Address,
-    client: Arc<BlockchainClient>,
+    provider: Arc<dyn Provider<Ethereum>>,
 }
 
 impl EarnVaultContract {
     pub fn new(
         address: Address,
-        _provider: Arc<dyn alloy::providers::Provider<alloy::network::Ethereum>>,
-        client: BlockchainClient,
+        provider: Arc<dyn Provider<Ethereum>>,
     ) -> Self {
         Self {
             address,
-            client: Arc::new(client),
+            provider,
         }
     }
     
@@ -44,7 +44,9 @@ impl EarnVaultContract {
             ..Default::default()
         };
         
-        let tx_hash = self.client.send_transaction(tx).await?;
+        // Use provider.send_transaction directly - provider already has signer attached
+        let pending = self.provider.send_transaction(tx).await?;
+        let tx_hash = *pending.tx_hash();
         Ok(tx_hash)
     }
 }

@@ -1,4 +1,3 @@
-use crate::blockchain::BlockchainClient;
 use alloy::network::Ethereum;
 use alloy::primitives::{Address, Bytes, TxKind, B256, U256};
 use alloy::providers::Provider;
@@ -22,19 +21,16 @@ sol! {
 pub struct ERC20Contract {
     address: Address,
     provider: Arc<dyn Provider<Ethereum>>,
-    client: Arc<BlockchainClient>,
 }
 
 impl ERC20Contract {
     pub fn new(
         address: Address,
         provider: Arc<dyn Provider<Ethereum>>,
-        client: BlockchainClient,
     ) -> Self {
         Self {
             address,
             provider,
-            client: Arc::new(client),
         }
     }
 
@@ -103,7 +99,9 @@ impl ERC20Contract {
             ..Default::default()
         };
 
-        let tx_hash = self.client.send_transaction(tx).await?;
+        // Use provider.send_transaction directly - provider already has signer attached
+        let pending = self.provider.send_transaction(tx).await?;
+        let tx_hash = *pending.tx_hash();
         Ok(tx_hash)
     }
 }
