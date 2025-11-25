@@ -80,7 +80,13 @@ impl ChainConfig {
         // Simple environment variable substitution
         let content = Self::substitute_env_vars(merged_content)?;
 
-        let config: ChainConfig = toml::from_str(&content)?;
+        let mut config: ChainConfig = toml::from_str(&content)?;
+        
+        // Override min_yield_threshold if set, fallback to common.toml value
+        if let Ok(threshold) = env::var("MIN_YIELD_THRESHOLD") {
+            config.thresholds.min_yield_threshold = threshold;
+        }
+        
         Ok(config)
     }
 
