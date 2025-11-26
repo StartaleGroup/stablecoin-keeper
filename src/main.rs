@@ -8,7 +8,7 @@ mod transaction_monitor;
 
 use anyhow::Result;
 use config::ChainConfig;
-use jobs::{ClaimYieldJob, DistributeRewardsJob};
+use jobs::{ClaimYieldJob, DistributeRewardsJob, BoostRewardsJob};
 
 use clap::{Parser, Subcommand};
 
@@ -45,6 +45,34 @@ enum Commands {
         #[arg(long)]
         aws_region: Option<String>,
 
+        #[arg(long)]
+        dry_run: bool,
+    },
+    BoostRewardsDistribute {
+        #[arg(long)]
+        config: String,
+        
+        #[arg(long)]
+        token_address: String,
+        
+        #[arg(long)]
+        total_amount: f64,
+        
+        #[arg(long)]
+        start_date: String,
+        
+        #[arg(long)]
+        end_date: String,
+        
+        #[arg(long)]
+        campaign_id: Option<String>,
+        
+        #[arg(long)]
+        kms_key_id: Option<String>,
+        
+        #[arg(long)]
+        aws_region: Option<String>,
+        
         #[arg(long)]
         dry_run: bool,
     },
@@ -91,7 +119,7 @@ async fn main() -> Result<()> {
             let chain_config = setup_config(&config, kms_key_id, aws_region)?;
             let job = ClaimYieldJob::new(chain_config, dry_run);
             job.execute().await?;
-        }
+        },
         Commands::DistributeRewards {
             config,
             kms_key_id,
@@ -101,7 +129,22 @@ async fn main() -> Result<()> {
             let chain_config = setup_config(&config, kms_key_id, aws_region)?;
             let job = DistributeRewardsJob::new(chain_config, dry_run);
             job.execute().await?;
-        }
+        },
+        Commands::BoostRewardsDistribute {
+            config,
+            token_address,
+            total_amount,
+            end_date,
+            start_date,
+            campaign_id,
+            kms_key_id,
+            aws_region,
+            dry_run,
+        } => {
+            let chain_config = setup_config(&config, kms_key_id, aws_region)?;
+            let job = BoostRewardsJob::new(chain_config, token_address, total_amount, start_date, end_date, campaign_id, dry_run)?;
+            job.execute().await?;
+        },
     }
 
     Ok(())
