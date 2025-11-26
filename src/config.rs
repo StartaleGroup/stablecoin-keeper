@@ -9,6 +9,7 @@ use toml::map::Map;
 pub struct ChainConfig {
     pub chain: ChainSettings,
     pub contracts: ContractAddresses,
+    #[serde(default)]
     pub thresholds: Thresholds,
     pub retry: RetrySettings,
     pub monitoring: MonitoringSettings,
@@ -33,7 +34,16 @@ pub struct ContractAddresses {
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Thresholds {
+    #[serde(default)]
     pub min_yield_threshold: String,
+}
+
+impl Default for Thresholds {
+    fn default() -> Self {
+        Self {
+            min_yield_threshold: "1".into(), // Default: 1 wei USDSC
+        }
+    }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -80,7 +90,15 @@ impl ChainConfig {
         // Simple environment variable substitution
         let content = Self::substitute_env_vars(merged_content)?;
 
-        let config: ChainConfig = toml::from_str(&content)?;
+        let mut config: ChainConfig = toml::from_str(&content)?;
+        
+        // Set min_yield_threshold: use env var if set, otherwise use default
+        let mut threshold = Thresholds::default();
+        if let Ok(env_value) = env::var("MIN_YIELD_THRESHOLD") {
+            threshold.min_yield_threshold = env_value;
+        }
+        config.thresholds = threshold;
+        println!("config.thresholds: {:?}", config.thresholds);
         Ok(config)
     }
 
