@@ -17,7 +17,7 @@ pub struct BoostRewardsJob {
     total_amount: f64,
     start_date: NaiveDate,
     end_date: NaiveDate,
-    duration_days: u64,  // Calculated from start_date and end_date
+    duration_days: u64, // Calculated from start_date and end_date
     campaign_id: Option<String>,
     dry_run: bool,
 }
@@ -35,7 +35,7 @@ impl BoostRewardsJob {
         let token_addr = Address::from_str(&token_address)?;
         let start = NaiveDate::parse_from_str(&start_date, "%Y-%m-%d")?;
         let end = NaiveDate::parse_from_str(&end_date, "%Y-%m-%d")?;
-        
+
         // Validate end_date is after start_date
         if end <= start {
             return Err(anyhow::anyhow!(
@@ -44,16 +44,19 @@ impl BoostRewardsJob {
                 start_date
             ));
         }
-        
+
         // Calculate duration in days
         let duration_days = (end - start).num_days() as u64;
         if duration_days == 0 {
             return Err(anyhow::anyhow!("Campaign duration must be at least 1 day"));
         }
-        
+
         // Validate total_amount is positive
         if total_amount <= 0.0 {
-            return Err(anyhow::anyhow!("Total amount must be positive: {}", total_amount));
+            return Err(anyhow::anyhow!(
+                "Total amount must be positive: {}",
+                total_amount
+            ));
         }
 
         Ok(Self {
@@ -99,7 +102,10 @@ impl BoostRewardsJob {
             self.config.retry.backoff_multiplier,
         );
 
-        let kms_config = self.config.kms.as_ref()
+        let kms_config = self
+            .config
+            .kms
+            .as_ref()
             .ok_or_else(|| anyhow::anyhow!("KMS configuration is required"))?;
 
         println!("🔐 Using KMS signing with key: {}", kms_config.key_id);
@@ -121,10 +127,7 @@ impl BoostRewardsJob {
 
         // 2. Validate token contract and get decimals
         println!("🔍 Validating token contract...");
-        let token_contract = ERC20Contract::new(
-            self.token_address,
-            client_arc.provider(),
-        );
+        let token_contract = ERC20Contract::new(self.token_address, client_arc.provider());
 
         let keeper_address = client_arc.keeper_address();
         // Get token details and keeper balance
@@ -133,12 +136,12 @@ impl BoostRewardsJob {
             token_contract.symbol(),
             token_contract.balance_of(keeper_address),
         )?;
-        
+
         println!("   Token: {} ({} decimals)", token_symbol, token_decimals);
 
         // 3. Calculate daily amount with overflow checks
         let multiplier = 10_f64.powi(token_decimals as i32);
-        
+
         // Validate multiplier
         if multiplier.is_infinite() || multiplier.is_nan() {
             return Err(anyhow::anyhow!(
@@ -146,7 +149,7 @@ impl BoostRewardsJob {
                 token_decimals
             ));
         }
-        
+
         // Check for f64 overflow before multiplication
         let max_safe_amount_f64 = f64::MAX / multiplier;
         if self.total_amount > max_safe_amount_f64 {
@@ -156,7 +159,7 @@ impl BoostRewardsJob {
                 token_decimals
             ));
         }
-        
+
         // Check for u128 overflow before multiplication
         let max_safe_amount_u128 = u128::MAX as f64 / multiplier;
         if self.total_amount > max_safe_amount_u128 {
@@ -166,7 +169,7 @@ impl BoostRewardsJob {
                 token_decimals
             ));
         }
-        
+
         // Perform multiplication and validate result
         let amount_wei_f64 = self.total_amount * multiplier;
         if amount_wei_f64.is_infinite() || amount_wei_f64.is_nan() {
@@ -181,7 +184,7 @@ impl BoostRewardsJob {
                 self.total_amount
             ));
         }
-        
+
         // Convert to U256 (round to nearest integer)
         let total_amount_wei = U256::from(amount_wei_f64.round() as u128);
 
@@ -190,11 +193,14 @@ impl BoostRewardsJob {
             .ok_or_else(|| anyhow::anyhow!("Division by zero"))?;
 
         let daily_amount_human = self.total_amount / self.duration_days as f64;
-        
+
         println!("💰 Campaign Details:");
         println!("   Total Amount: {} {}", self.total_amount, token_symbol);
         println!("   Duration: {} days", self.duration_days);
-        println!("   Daily Amount: {:.2} {}", daily_amount_human, token_symbol);
+        println!(
+            "   Daily Amount: {:.2} {}",
+            daily_amount_human, token_symbol
+        );
 
         // 4. Calculate days elapsed/remaining
         let days_elapsed = (today - self.start_date).num_days();
@@ -220,16 +226,24 @@ impl BoostRewardsJob {
         let days_for_remaining_calc = days_remaining.max(1) as u64;
         let remaining_amount_wei = daily_amount_wei
             .checked_mul(U256::from(days_for_remaining_calc))
-            .ok_or_else(|| anyhow::anyhow!("Amount overflow when calculating remaining campaign amount"))?;
-        
-        let keeper_balance_human = keeper_balance.to_string().parse::<f64>()?
-            / 10_f64.powi(token_decimals as i32);
-        let remaining_amount_human = remaining_amount_wei.to_string().parse::<f64>()?
-            / 10_f64.powi(token_decimals as i32);
+            .ok_or_else(|| {
+                anyhow::anyhow!("Amount overflow when calculating remaining campaign amount")
+            })?;
+
+        let keeper_balance_human =
+            keeper_balance.to_string().parse::<f64>()? / 10_f64.powi(token_decimals as i32);
+        let remaining_amount_human =
+            remaining_amount_wei.to_string().parse::<f64>()? / 10_f64.powi(token_decimals as i32);
 
         println!("💵 Balance Check:");
-        println!("   Keeper Balance: {:.2} {}", keeper_balance_human, token_symbol);
-        println!("   Daily Amount Required: {:.2} {}", daily_amount_human, token_symbol);
+        println!(
+            "   Keeper Balance: {:.2} {}",
+            keeper_balance_human, token_symbol
+        );
+        println!(
+            "   Daily Amount Required: {:.2} {}",
+            daily_amount_human, token_symbol
+        );
         println!(
             "   Remaining Campaign Amount Required: {:.2} {} ({} days remaining)",
             remaining_amount_human, token_symbol, days_for_remaining_calc
@@ -248,15 +262,23 @@ impl BoostRewardsJob {
         }
 
         // 6. Get earn vault address
-        let earn_vault_address = self.config.contracts.earn_vault_address.as_ref()
+        let earn_vault_address = self
+            .config
+            .contracts
+            .earn_vault_address
+            .as_ref()
             .ok_or_else(|| anyhow::anyhow!("Earn vault address not configured"))?;
         let earn_vault_addr = Address::from_str(earn_vault_address)?;
 
         if self.dry_run {
-            println!("✅ DRY RUN: Would transfer {} {} to Earn Vault", 
-                     daily_amount_human, token_symbol);
-            println!("✅ DRY RUN: Would call onBoostReward({}, {})", 
-                     self.token_address, daily_amount_wei);
+            println!(
+                "✅ DRY RUN: Would transfer {} {} to Earn Vault",
+                daily_amount_human, token_symbol
+            );
+            println!(
+                "✅ DRY RUN: Would call onBoostReward({}, {})",
+                self.token_address, daily_amount_wei
+            );
             return Ok(());
         }
 

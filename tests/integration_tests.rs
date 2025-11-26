@@ -153,9 +153,6 @@ rpc_url = "https://eth.llamarpc.com"
 usdsc_address = "0x1234567890123456789012345678901234567890"
 recipient_address = "0x0987654321098765432109876543210987654321"
 
-[thresholds]
-min_yield_threshold = "1000000"
-
 [retry]
 max_attempts = 3
 base_delay_seconds = 5
@@ -194,7 +191,7 @@ region = "us-east-1"
         config.contracts.usdsc_address,
         "0x1234567890123456789012345678901234567890"
     );
-    assert_eq!(config.thresholds.min_yield_threshold, "1000000");
+    assert_eq!(config.thresholds.min_yield_threshold, "1");
     assert_eq!(config.retry.max_attempts, 3);
     assert!(config.kms.is_some());
 

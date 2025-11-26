@@ -24,14 +24,8 @@ pub struct ERC20Contract {
 }
 
 impl ERC20Contract {
-    pub fn new(
-        address: Address,
-        provider: Arc<dyn Provider<Ethereum>>,
-    ) -> Self {
-        Self {
-            address,
-            provider,
-        }
+    pub fn new(address: Address, provider: Arc<dyn Provider<Ethereum>>) -> Self {
+        Self { address, provider }
     }
 
     pub async fn balance_of(&self, account: Address) -> Result<U256> {
