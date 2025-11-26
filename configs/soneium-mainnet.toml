@@ -1,5 +1,5 @@
 [chain]
-chain_id = 1848
+chain_id = 1868
 rpc_url = "${SONEIUM_RPC_URL}"
 
 [contracts]

@@ -1,9 +1,6 @@
 # Common configuration for all networks
 # This file contains shared settings that are the same across all networks
 
-[thresholds]
-min_yield_threshold = "1"  # keeping it minimum from now, we'll monitor and adjust as needed
-
 [retry]
 max_attempts = 3
 base_delay_seconds = 5
