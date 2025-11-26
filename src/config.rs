@@ -41,7 +41,7 @@ pub struct Thresholds {
 impl Default for Thresholds {
     fn default() -> Self {
         Self {
-            min_yield_threshold: "1".into(), // Default: 1 wei USDSC
+            min_yield_threshold: "1".into(), // Default: 1 USDC in wei
         }
     }
 }
@@ -91,14 +91,11 @@ impl ChainConfig {
         let content = Self::substitute_env_vars(merged_content)?;
 
         let mut config: ChainConfig = toml::from_str(&content)?;
-        
-        // Set min_yield_threshold: use env var if set, otherwise use default
-        let mut threshold = Thresholds::default();
+
+        // Override min_yield_threshold from env var if set, otherwise keep value default
         if let Ok(env_value) = env::var("MIN_YIELD_THRESHOLD") {
-            threshold.min_yield_threshold = env_value;
+            config.thresholds.min_yield_threshold = env_value;
         }
-        config.thresholds = threshold;
-        println!("config.thresholds: {:?}", config.thresholds);
         Ok(config)
     }
 
@@ -126,7 +123,7 @@ impl ChainConfig {
         let merged = Self::merge_toml_values(common_toml, specific_toml);
 
         // Convert back to TOML string
-        let merged_toml = toml::to_string_pretty(&merged)?;
+        let merged_toml = toml::to_string(&merged)?;
         Ok(merged_toml)
     }
 
@@ -140,7 +137,7 @@ impl ChainConfig {
                             base_map
                                 .get(&key)
                                 .cloned()
-                                .unwrap_or(toml::Value::Table(Map::new())),
+                                .unwrap_or_else(|| toml::Value::Table(Map::new())),
                             value,
                         ),
                     );
