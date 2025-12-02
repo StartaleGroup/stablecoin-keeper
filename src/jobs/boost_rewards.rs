@@ -45,8 +45,9 @@ impl BoostRewardsJob {
             ));
         }
 
-        // Calculate duration in days
-        let duration_days = (end - start).num_days() as u64;
+        // Calculate duration in days (inclusive of both start and end dates)
+        // Example: Jan 1 to Jan 3 = 3 days (Jan 1, Jan 2, Jan 3)
+        let duration_days = ((end - start).num_days() + 1) as u64;
         if duration_days == 0 {
             return Err(anyhow::anyhow!("Campaign duration must be at least 1 day"));
         }
