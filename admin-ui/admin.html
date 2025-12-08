@@ -1,0 +1,842 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stablecoin Boost Campaigns - Admin</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 1.1rem;
+        }
+
+        .content {
+            padding: 40px;
+        }
+
+        .section {
+            margin-bottom: 40px;
+        }
+
+        .section-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: #333;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
+        }
+
+        /* Form Styles */
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .form-group.full-width {
+            grid-column: 1 / -1;
+        }
+
+        label {
+            font-weight: 500;
+            margin-bottom: 8px;
+            color: #555;
+            font-size: 0.9rem;
+        }
+
+        input, select {
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.3s;
+        }
+
+        input:focus, select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        input:disabled {
+            background: #f5f5f5;
+            cursor: not-allowed;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-secondary:hover:not(:disabled) {
+            background: #5a6268;
+        }
+
+        /* Make status action buttons (Pause/Complete) more prominent and clearly enabled */
+        .campaign-actions .btn-secondary:not(:disabled) {
+            background: #17a2b8;
+            border: 1px solid #138496;
+            font-weight: 500;
+        }
+
+        .campaign-actions .btn-secondary:not(:disabled):hover {
+            background: #138496;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-danger:hover:not(:disabled) {
+            background: #c82333;
+        }
+
+        .btn-edit {
+            background: #28a745;
+            color: white;
+            padding: 8px 16px;
+            font-size: 0.9rem;
+        }
+
+        .btn-edit:hover:not(:disabled) {
+            background: #218838;
+        }
+
+        .btn-status {
+            background: #17a2b8;
+            color: white;
+            padding: 8px 16px;
+            font-size: 0.9rem;
+        }
+
+        .btn-status:hover:not(:disabled) {
+            background: #138496;
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* Campaign List */
+        .campaigns-grid {
+            display: grid;
+            gap: 20px;
+        }
+
+        .campaign-card {
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            padding: 24px;
+            background: #fafafa;
+            transition: all 0.3s;
+        }
+
+        .campaign-card:hover {
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            transform: translateY(-2px);
+        }
+
+        .campaign-card.disabled {
+            opacity: 0.6;
+            background: #f0f0f0;
+            border-color: #d0d0d0;
+        }
+
+        /* Ensure status action buttons are always enabled when shown - override card disabled opacity */
+        .campaign-card.disabled .btn-secondary:not(:disabled),
+        .campaign-card.disabled .btn-primary:not(:disabled) {
+            opacity: 1 !important;
+            cursor: pointer;
+            background: #17a2b8 !important;
+            border: 1px solid #138496 !important;
+            font-weight: 500;
+        }
+
+        .campaign-card.disabled .btn-secondary:not(:disabled):hover,
+        .campaign-card.disabled .btn-primary:not(:disabled):hover {
+            background: #138496 !important;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .campaign-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .campaign-id {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: #667eea;
+        }
+
+        .campaign-status {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .status-active {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-upcoming {
+            background: #cfe2ff;
+            color: #084298;
+        }
+
+        .status-upcoming {
+            background: #cfe2ff;
+            color: #084298;
+        }
+
+        .status-paused {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .status-completed {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .campaign-details {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+
+        /* Make token address item take full width on smaller screens */
+        @media (max-width: 768px) {
+            .campaign-details .detail-item:first-child {
+                grid-column: 1 / -1;
+            }
+        }
+
+        .detail-item {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .detail-label {
+            font-size: 0.85rem;
+            color: #666;
+            margin-bottom: 4px;
+            font-weight: 500;
+        }
+
+        .detail-value {
+            font-size: 1rem;
+            color: #333;
+            font-weight: 600;
+            word-break: break-all;
+            overflow-wrap: break-word;
+            hyphens: auto;
+        }
+
+        /* Special handling for token addresses - use monospace and allow wrapping */
+        .detail-value.token-address {
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', 'Courier New', monospace;
+            font-size: 0.9rem;
+            word-break: break-all;
+            overflow-wrap: anywhere;
+            line-height: 1.4;
+        }
+        
+        /* Make token address item take full width to prevent overlap */
+        .detail-item:first-child {
+            grid-column: 1 / -1;
+            min-width: 0; /* Allow grid item to shrink below content size */
+        }
+
+        .campaign-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 1px solid #e0e0e0;
+        }
+
+        /* Alert Messages */
+        .alert {
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-weight: 500;
+        }
+
+        .alert-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .alert-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .alert-info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        /* Loading State */
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #666;
+        }
+
+        .empty-state-icon {
+            font-size: 4rem;
+            margin-bottom: 20px;
+            opacity: 0.3;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 2rem;
+            }
+
+            .content {
+                padding: 20px;
+            }
+
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .campaign-header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 Stablecoin Boost Campaigns</h1>
+            <p>Manage boost reward campaigns</p>
+        </div>
+
+        <div class="content">
+            <!-- Alert Container -->
+            <div id="alert-container"></div>
+
+            <!-- Add/Edit Campaign Form -->
+            <div class="section">
+                <h2 class="section-title" id="form-title">Add New Campaign</h2>
+                <form id="campaign-form">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="id-input">Campaign ID *</label>
+                            <input type="text" id="id-input" name="id" required placeholder="e.g., campaign-2025-01">
+                        </div>
+                        <div class="form-group">
+                            <label for="token-address">Token Address *</label>
+                            <input type="text" id="token-address" name="token_address" required placeholder="0x...">
+                        </div>
+                        <div class="form-group">
+                            <label for="total-amount">Total Amount *</label>
+                            <input type="number" id="total-amount" name="total_amount" step="0.01" required placeholder="100.5">
+                        </div>
+                        <div class="form-group">
+                            <label for="start-date">Start Date *</label>
+                            <input type="date" id="start-date" name="start_date" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="end-date">End Date *</label>
+                            <input type="date" id="end-date" name="end_date" required>
+                        </div>
+                    </div>
+                    <div class="button-group">
+                        <button type="submit" id="submit-btn" class="btn-primary">Add Campaign</button>
+                        <button type="button" id="cancel-btn" class="btn-secondary" style="display: none;" onclick="cancelEdit()">Cancel</button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Campaigns List -->
+            <div class="section">
+                <h2 class="section-title">Campaign History</h2>
+                <div id="campaigns-container">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        <p>Loading campaigns...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'https://16kmjs8w8h.execute-api.eu-central-1.amazonaws.com/dev';
+        let editingId = null;
+        let campaigns = [];
+
+        // Load campaigns on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            loadCampaigns();
+            
+            // Set minimum date to today
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('start-date').min = today;
+            document.getElementById('end-date').min = today;
+        });
+
+        // Form submission
+        document.getElementById('campaign-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const data = Object.fromEntries(formData.entries());
+            
+            // Convert total_amount to number
+            data.total_amount = parseFloat(data.total_amount);
+            
+            // Default status to "active" for new campaigns (status field removed from form)
+            if (!editingId) {
+                data.status = 'active';
+            }
+
+            try {
+                if (editingId) {
+                    await updateCampaign(editingId, data);
+                } else {
+                    await createCampaign(data);
+                }
+                e.target.reset();
+                editingId = null;
+                updateFormUI();
+                await loadCampaigns();
+            } catch (error) {
+                showAlert(error.message, 'error');
+            }
+        });
+
+        // Load campaigns
+        async function loadCampaigns() {
+            const container = document.getElementById('campaigns-container');
+            container.innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading campaigns...</p></div>';
+
+            try {
+                const response = await fetch(`${API_URL}/campaigns`);
+                if (!response.ok) throw new Error('Failed to load campaigns');
+                
+                const result = await response.json();
+                campaigns = result.campaigns || [];
+                renderCampaigns();
+            } catch (error) {
+                container.innerHTML = `<div class="alert alert-error">Error loading campaigns: ${error.message}</div>`;
+            }
+        }
+
+        // Render campaigns
+        function renderCampaigns() {
+            const container = document.getElementById('campaigns-container');
+            
+            if (campaigns.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📭</div>
+                        <h3>No campaigns yet</h3>
+                        <p>Create your first campaign using the form above</p>
+                    </div>
+                `;
+                return;
+            }
+
+            // Sort campaigns by start date (newest first)
+            const sortedCampaigns = [...campaigns].sort((a, b) => 
+                new Date(b.start_date) - new Date(a.start_date)
+            );
+
+            container.innerHTML = sortedCampaigns.map(campaign => {
+                const canEdit = canEditCampaign(campaign);
+                const canChangeStatusValue = canChangeStatus(campaign);
+                const canDelete = canDeleteCampaign(campaign);
+                
+                // Only grey out completed campaigns, not active/running ones
+                const today = new Date();
+                today.setUTCHours(0, 0, 0, 0);
+                const startDate = new Date(campaign.start_date);
+                startDate.setUTCHours(0, 0, 0, 0);
+                const endDate = new Date(campaign.end_date);
+                endDate.setUTCHours(0, 0, 0, 0);
+                
+                const isUpcoming = startDate > today;
+                const isRunning = startDate <= today && endDate >= today;
+                const isCompleted = campaign.status === 'completed' || endDate < today;
+                
+                // Only apply disabled class to completed campaigns
+                const cardClass = isCompleted ? 'disabled' : '';
+                
+                // Determine display status
+                let displayStatus = campaign.status;
+                if (isUpcoming && campaign.status === 'active') {
+                    displayStatus = 'upcoming';
+                }
+                
+                return `
+                    <div class="campaign-card ${cardClass}">
+                        <div class="campaign-header">
+                            <div class="campaign-id">${campaign.id}</div>
+                            <span class="campaign-status status-${displayStatus}">${displayStatus}</span>
+                        </div>
+                        <div class="campaign-details">
+                            <div class="detail-item">
+                                <span class="detail-label">Token Address</span>
+                                <span class="detail-value token-address">${campaign.token_address}</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Total Amount</span>
+                                <span class="detail-value">${campaign.total_amount}</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Start Date</span>
+                                <span class="detail-value">${formatDate(campaign.start_date)}</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">End Date</span>
+                                <span class="detail-value">${formatDate(campaign.end_date)}</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">Duration</span>
+                                <span class="detail-value">${calculateDuration(campaign.start_date, campaign.end_date)} days</span>
+                            </div>
+                        </div>
+                        <div class="campaign-actions">
+                            <button class="btn-edit" onclick="editCampaign('${campaign.id}')" ${canEdit ? '' : 'disabled'} title="${canEdit ? 'Edit campaign details' : 'Cannot edit: campaign already started or completed'}">
+                                ${canEdit ? '✏️ Edit' : '🔒 Locked'}
+                            </button>
+                            ${canChangeStatusValue ? `
+                                ${campaign.status === 'active' ? `
+                                    <button class="btn-secondary" onclick="changeCampaignStatus('${campaign.id}', 'paused')" title="Pause this campaign">
+                                        ⏸️ Pause
+                                    </button>
+                                ` : campaign.status === 'paused' ? `
+                                    <button class="btn-primary" onclick="changeCampaignStatus('${campaign.id}', 'active')" title="Resume this campaign">
+                                        ▶️ Resume
+                                    </button>
+                                ` : ''}
+                            ` : ''}
+                            ${canDelete ? `
+                                <button class="btn-danger" onclick="deleteCampaign('${campaign.id}')" title="Delete campaign">
+                                    🗑️ Delete
+                                </button>
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Create campaign
+        async function createCampaign(data) {
+            const response = await fetch(`${API_URL}/campaigns`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+
+            const result = await response.json();
+            if (!response.ok) throw new Error(result.error || 'Failed to create campaign');
+            
+            showAlert('Campaign created successfully!', 'success');
+        }
+
+        // Update campaign
+        async function updateCampaign(id, data) {
+            const response = await fetch(`${API_URL}/campaigns/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+
+            const result = await response.json();
+            if (!response.ok) throw new Error(result.error || 'Failed to update campaign');
+            
+            showAlert('Campaign updated successfully!', 'success');
+        }
+
+        // Change campaign status (pause/resume/complete)
+        async function changeCampaignStatus(id, newStatus) {
+            const campaign = campaigns.find(c => c.id === id);
+            if (!campaign) return;
+
+            const statusLabels = {
+                'paused': 'pause',
+                'active': 'resume'
+            };
+            const action = statusLabels[newStatus] || 'change status';
+
+            if (!confirm(`Are you sure you want to ${action} this campaign?`)) return;
+
+            try {
+                // For active campaigns, only send status change (backend will validate)
+                const updateData = {
+                    token_address: campaign.token_address,
+                    total_amount: campaign.total_amount,
+                    start_date: campaign.start_date,
+                    end_date: campaign.end_date,
+                    status: newStatus
+                };
+
+                const response = await fetch(`${API_URL}/campaigns/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(updateData)
+                });
+
+                const result = await response.json();
+                if (!response.ok) throw new Error(result.error || 'Failed to update campaign status');
+                
+                showAlert(`Campaign ${action}d successfully!`, 'success');
+                await loadCampaigns();
+            } catch (error) {
+                showAlert(error.message, 'error');
+            }
+        }
+
+        // Delete campaign
+        async function deleteCampaign(id) {
+            if (!confirm('Are you sure you want to delete this campaign? This action cannot be undone.')) return;
+
+            try {
+                const response = await fetch(`${API_URL}/campaigns/${id}`, {
+                    method: 'DELETE'
+                });
+
+                const result = await response.json();
+                if (!response.ok) throw new Error(result.error || 'Failed to delete campaign');
+                
+                showAlert('Campaign deleted successfully!', 'success');
+                await loadCampaigns();
+            } catch (error) {
+                showAlert(error.message, 'error');
+            }
+        }
+
+        // Edit campaign
+        function editCampaign(id) {
+            const campaign = campaigns.find(c => c.id === id);
+            if (!campaign) return;
+
+            document.getElementById('id-input').value = campaign.id;
+            document.getElementById('token-address').value = campaign.token_address;
+            document.getElementById('total-amount').value = campaign.total_amount;
+            document.getElementById('start-date').value = campaign.start_date;
+            document.getElementById('end-date').value = campaign.end_date;
+            // Status is not editable - campaigns always start as "active"
+            
+            editingId = campaign.id;
+            updateFormUI();
+            
+            // Scroll to form
+            document.getElementById('campaign-form').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+
+        // Cancel edit
+        function cancelEdit() {
+            document.getElementById('campaign-form').reset();
+            editingId = null;
+            updateFormUI();
+        }
+
+        // Update form UI
+        function updateFormUI() {
+            const title = document.getElementById('form-title');
+            const submitBtn = document.getElementById('submit-btn');
+            const cancelBtn = document.getElementById('cancel-btn');
+            const idInput = document.getElementById('id-input');
+            
+            if (editingId) {
+                title.textContent = 'Edit Campaign';
+                submitBtn.textContent = 'Update Campaign';
+                cancelBtn.style.display = 'block';
+                idInput.disabled = true;
+            } else {
+                title.textContent = 'Add New Campaign';
+                submitBtn.textContent = 'Add Campaign';
+                cancelBtn.style.display = 'none';
+                idInput.disabled = false;
+            }
+        }
+
+        // Check if campaign fields can be edited (amount, dates, token)
+        function canEditCampaign(campaign) {
+            const today = new Date();
+            today.setUTCHours(0, 0, 0, 0);
+            const startDate = new Date(campaign.start_date);
+            startDate.setUTCHours(0, 0, 0, 0);
+            
+            if (campaign.status === 'completed') return false;
+            if (startDate <= today) return false; // Already started - can't edit fields
+            return true;
+        }
+
+        // Check if campaign status can be changed (pause/resume)
+        function canChangeStatus(campaign) {
+            // Can't change status if already completed
+            if (campaign.status === 'completed') return false;
+            
+            // Check if campaign is currently running (within date range)
+            const today = new Date();
+            today.setUTCHours(0, 0, 0, 0);
+            const startDate = new Date(campaign.start_date);
+            startDate.setUTCHours(0, 0, 0, 0);
+            const endDate = new Date(campaign.end_date);
+            endDate.setUTCHours(0, 0, 0, 0);
+            
+            // Can only pause/resume campaigns that are currently running (started but not past end_date)
+            // Future campaigns can be paused before they start, but that's less useful
+            // So we allow status changes for campaigns that have started and haven't ended
+            return startDate <= today && endDate >= today;
+        }
+
+        // Check if campaign can be deleted
+        function canDeleteCampaign(campaign) {
+            // Can only delete future campaigns (not started or completed)
+            const today = new Date();
+            today.setUTCHours(0, 0, 0, 0);
+            const startDate = new Date(campaign.start_date);
+            startDate.setUTCHours(0, 0, 0, 0);
+            
+            if (campaign.status === 'completed') return false;
+            if (startDate <= today) return false; // Already started - keep for history
+            return true;
+        }
+
+        // Show alert
+        function showAlert(message, type) {
+            const container = document.getElementById('alert-container');
+            container.innerHTML = `<div class="alert alert-${type}">${message}</div>`;
+            setTimeout(() => {
+                container.innerHTML = '';
+            }, 5000);
+        }
+
+        // Format date
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+        }
+
+        // Calculate duration
+        function calculateDuration(startDate, endDate) {
+            const start = new Date(startDate);
+            const end = new Date(endDate);
+            const diffTime = Math.abs(end - start);
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1; // +1 for inclusive
+            return diffDays;
+        }
+    </script>
+</body>
+</html>
+
