@@ -4,6 +4,7 @@ mod contracts;
 mod jobs;
 mod kms_signer;
 mod retry;
+mod sources;
 mod transaction_monitor;
 
 use anyhow::Result;
@@ -75,6 +76,22 @@ enum Commands {
 
         #[arg(long)]
         dry_run: bool,
+    },
+    BoostRewardsService {
+        #[arg(long)]
+        config: String,
+        #[arg(long)]
+        campaigns_s3: String,  // Format: s3://bucket/key or bucket/key
+        #[arg(long)]
+        poll_interval_seconds: Option<u64>,  // Default: 3600 (1 hour)
+        #[arg(long)]
+        kms_key_id: Option<String>,
+        #[arg(long)]
+        aws_region: Option<String>,
+        #[arg(long)]
+        test_mode: bool,  // Skip wait and process immediately (for testing)
+        #[arg(long)]
+        execution_time: Option<String>,  // Default: 00:00 UTC
     },
 }
 
@@ -152,6 +169,57 @@ async fn main() -> Result<()> {
                 dry_run,
             )?;
             job.execute().await?;
+        }
+        Commands::BoostRewardsService {
+            config,
+            campaigns_s3,
+            poll_interval_seconds,
+            kms_key_id,
+            aws_region,
+            test_mode,
+            execution_time,
+        } => {
+            let chain_config = setup_config(&config, kms_key_id, aws_region)?;
+
+        // Parse S3 path (supports both s3://bucket/key and bucket/key)
+        let (bucket, key) = if campaigns_s3.starts_with("s3://") {
+            let path = campaigns_s3.strip_prefix("s3://").unwrap();
+            let parts: Vec<&str> = path.splitn(2, '/').collect();
+            if parts.len() != 2 {
+                return Err(anyhow::anyhow!("Invalid S3 path format: {}", campaigns_s3));
+            }
+            (parts[0].to_string(), parts[1].to_string())
+        } else {
+            let parts: Vec<&str> = campaigns_s3.splitn(2, '/').collect();
+            if parts.len() != 2 {
+                return Err(anyhow::anyhow!("Invalid S3 path format: {}", campaigns_s3));
+            }
+            (parts[0].to_string(), parts[1].to_string())
+        };
+        
+        // Initialize S3 client
+        let aws_config = aws_config::load_from_env().await;
+        let s3_client = aws_sdk_s3::Client::new(&aws_config);
+        
+        // Create S3 campaign source
+        let campaign_source = Box::new(
+            crate::sources::boost_rewards_s3::S3CampaignSource::new(s3_client, bucket, key)
+        );
+        
+        // Create and run service
+        let poll_interval = poll_interval_seconds.unwrap_or(3600);
+        let service = crate::jobs::boost_rewards_service::BoostRewardsService::new(
+            chain_config,
+            campaign_source,
+            poll_interval,
+            execution_time,
+        )?;
+        
+        if test_mode {
+            service.run_with_test_mode(true).await?;
+        } else {
+            service.run().await?;
+        }
         }
     }
 

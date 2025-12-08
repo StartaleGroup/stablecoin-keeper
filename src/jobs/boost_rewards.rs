@@ -11,6 +11,11 @@ use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 
+// Trait for getting campaigns (abstraction layer)
+#[async_trait::async_trait]
+pub trait CampaignConfigSource: Send + Sync {
+    async fn get_campaigns(&self) -> Result<Vec<CampaignConfig>>;
+}
 pub struct BoostRewardsJob {
     config: ChainConfig,
     token_address: Address,
@@ -20,6 +25,35 @@ pub struct BoostRewardsJob {
     duration_days: u64, // Calculated from start_date and end_date
     campaign_id: Option<String>,
     dry_run: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct CampaignConfig {
+    pub id: String,
+    pub token_address: Address,
+    pub total_amount: f64,
+    pub start_date: NaiveDate,
+    pub end_date: NaiveDate,
+    pub status: CampaignStatus,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum CampaignStatus {
+    Active,
+    Paused,
+    Completed,
+}
+
+impl CampaignConfig {
+    pub fn duration_days(&self) -> u64 {
+        ((self.end_date - self.start_date).num_days() + 1) as u64
+    }
+
+    pub fn is_active_for_date(&self, date: NaiveDate) -> bool {
+        self.status == CampaignStatus::Active
+            && date >= self.start_date
+            && date <= self.end_date
+    }
 }
 
 impl BoostRewardsJob {
@@ -204,8 +238,9 @@ impl BoostRewardsJob {
         );
 
         // 4. Calculate days elapsed/remaining
-        let days_elapsed = (today - self.start_date).num_days();
-        let days_remaining = (self.end_date - today).num_days();
+        // Note: These are already validated to be non-negative by date range checks above
+        let days_elapsed = (today - self.start_date).num_days().max(0);
+        let days_remaining = (self.end_date - today).num_days().max(0);
         println!("📅 Date Validation:");
         println!("   Start Date: {}", self.start_date);
         println!("   End Date: {}", self.end_date);
@@ -366,5 +401,40 @@ impl BoostRewardsJob {
         }
 
         Ok(())
+    }
+
+    pub fn from_campaign_config(
+        config: ChainConfig,
+        campaign: CampaignConfig,
+        dry_run: bool,
+    ) -> Result<Self> {
+        // Validate campaign config (same validations as new())
+        if campaign.end_date <= campaign.start_date {
+            return Err(anyhow::anyhow!(
+                "Invalid campaign config for {}: end_date ({}) must be after start_date ({})",
+                campaign.id,
+                campaign.end_date,
+                campaign.start_date
+            ));
+        }
+
+        if campaign.total_amount <= 0.0 {
+            return Err(anyhow::anyhow!(
+                "Invalid campaign config for {}: total_amount must be positive, got {}",
+                campaign.id,
+                campaign.total_amount
+            ));
+        }
+
+        Ok(Self {
+            config,
+            token_address: campaign.token_address,
+            total_amount: campaign.total_amount,
+            start_date: campaign.start_date,
+            end_date: campaign.end_date,
+            duration_days: campaign.duration_days(),
+            campaign_id: Some(campaign.id),
+            dry_run,
+        })
     }
 }

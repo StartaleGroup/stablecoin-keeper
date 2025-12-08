@@ -4,6 +4,7 @@ pub mod contracts;
 pub mod jobs;
 pub mod kms_signer;
 pub mod retry;
+pub mod sources;
 pub mod transaction_monitor;
 
 pub use blockchain::BlockchainClient;
