@@ -35,8 +35,12 @@ impl BoostRewardsService {
     }
 
     fn parse_execution_time(time_str: &str) -> Result<(u32, u32)> {
-        let time = NaiveTime::parse_from_str(time_str, "%H:%M")
-            .map_err(|_| anyhow::anyhow!("Invalid execution_time format: '{}'. Expected 'HH:MM' (e.g., '12:00')", time_str))?;
+        let time = NaiveTime::parse_from_str(time_str, "%H:%M").map_err(|_| {
+            anyhow::anyhow!(
+                "Invalid execution_time format: '{}'. Expected 'HH:MM' (e.g., '12:00')",
+                time_str
+            )
+        })?;
         Ok((time.hour(), time.minute()))
     }
 
@@ -49,7 +53,10 @@ impl BoostRewardsService {
             println!("🧪 Boost Rewards Service Starting in TEST MODE...");
         } else {
             println!("🚀 Boost Rewards Service Starting...");
-            println!("   Service will run daily at {:02}:{:02} UTC", self.execution_time.0, self.execution_time.1);
+            println!(
+                "   Service will run daily at {:02}:{:02} UTC",
+                self.execution_time.0, self.execution_time.1
+            );
         }
 
         loop {
@@ -63,7 +70,8 @@ impl BoostRewardsService {
                 if wait_duration.num_seconds() > 0 {
                     println!("⏰ Next run scheduled for: {}", next_run);
                     println!("   Waiting {} seconds...", wait_duration.num_seconds());
-                    tokio::time::sleep(Duration::from_secs(wait_duration.num_seconds() as u64)).await;
+                    tokio::time::sleep(Duration::from_secs(wait_duration.num_seconds() as u64))
+                        .await;
                 }
             }
 
@@ -83,9 +91,13 @@ impl BoostRewardsService {
                     // TODO: Consider alerting mechanism for repeated failures
                 }
             }
-            
+
             // Log execution status for monitoring
-            let status = if execution_result.is_ok() { "success" } else { "failure" };
+            let status = if execution_result.is_ok() {
+                "success"
+            } else {
+                "failure"
+            };
             println!("📊 Execution status for {}: {}", today, status);
 
             // In test mode, exit after one run
@@ -100,13 +112,15 @@ impl BoostRewardsService {
 
     fn calculate_next_run_time(&self, now: chrono::DateTime<Utc>) -> chrono::DateTime<Utc> {
         let today = now.date_naive();
-        let execution_time = chrono::NaiveTime::from_hms_opt(self.execution_time.0, self.execution_time.1, 0)
-            .expect("Invalid execution time"); // Should never fail as we validate in new()
-        
+        let execution_time =
+            chrono::NaiveTime::from_hms_opt(self.execution_time.0, self.execution_time.1, 0)
+                .expect("Invalid execution time"); // Should never fail as we validate in new()
+
         // Check if today's execution time has passed
         let today_execution = chrono::NaiveDateTime::new(today, execution_time);
-        let today_execution_utc = chrono::DateTime::from_naive_utc_and_offset(today_execution, chrono::Utc);
-        
+        let today_execution_utc =
+            chrono::DateTime::from_naive_utc_and_offset(today_execution, chrono::Utc);
+
         if now < today_execution_utc {
             // Today's execution time hasn't passed yet, schedule for today
             today_execution_utc
@@ -120,7 +134,7 @@ impl BoostRewardsService {
 
     async fn process_campaigns_for_today(&self, today: NaiveDate) -> Result<()> {
         println!("📅 Processing campaigns for date: {}", today);
-        
+
         let all_campaigns = self.campaign_source.get_campaigns().await?;
         println!("   Found {} total campaigns", all_campaigns.len());
 
@@ -130,7 +144,10 @@ impl BoostRewardsService {
             .filter(|x| x.is_active_for_date(today))
             .collect();
 
-        println!("   Found {} active campaigns for today", active_campaigns.len());
+        println!(
+            "   Found {} active campaigns for today",
+            active_campaigns.len()
+        );
 
         if active_campaigns.is_empty() {
             println!("   No active campaigns, skipping...");
@@ -144,11 +161,19 @@ impl BoostRewardsService {
         for (index, campaign) in active_campaigns.iter().enumerate() {
             // Add delay before processing (except for the first campaign)
             if index > 0 {
-                println!("   ⏸️  Waiting {} seconds before next campaign...", self.delay_between_campaigns.as_secs());
+                println!(
+                    "   ⏸️  Waiting {} seconds before next campaign...",
+                    self.delay_between_campaigns.as_secs()
+                );
                 tokio::time::sleep(self.delay_between_campaigns).await;
             }
 
-            println!("🎯 Processing campaign: {} ({}/{})", campaign.id, index + 1, active_campaigns.len());
+            println!(
+                "🎯 Processing campaign: {} ({}/{})",
+                campaign.id,
+                index + 1,
+                active_campaigns.len()
+            );
             match self.process_single_campaign(campaign).await {
                 Ok(_) => println!("   ✅ Campaign {} completed successfully", campaign.id),
                 Err(e) => {
@@ -162,13 +187,9 @@ impl BoostRewardsService {
     }
 
     async fn process_single_campaign(&self, campaign: &CampaignConfig) -> Result<()> {
-        let job = BoostRewardsJob::from_campaign_config(
-            self.config.clone(),
-            campaign.clone(),
-            false,
-        )?;
-        
+        let job =
+            BoostRewardsJob::from_campaign_config(self.config.clone(), campaign.clone(), false)?;
+
         job.execute().await
     }
 }
-

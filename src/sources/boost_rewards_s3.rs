@@ -2,7 +2,7 @@ use crate::jobs::boost_rewards::{CampaignConfig, CampaignConfigSource, CampaignS
 use alloy::primitives::Address;
 use anyhow::Result;
 use aws_sdk_s3::Client as S3Client;
-use chrono::{Duration, NaiveDate, Utc};
+use chrono::NaiveDate;
 use serde::Deserialize;
 use std::str::FromStr;
 use toml;
@@ -77,8 +77,10 @@ impl CampaignConfigSource for S3CampaignSource {
             .map_err(|e| anyhow::anyhow!("Invalid UTF-8 in S3 object: {}", e))?;
 
         // Parse TOML
-        let config: S3CampaignsConfig = toml::from_str(&content)
-            .map_err(|e: toml::de::Error| anyhow::anyhow!("Failed to parse S3 config TOML: {}", e))?;
+        let config: S3CampaignsConfig =
+            toml::from_str(&content).map_err(|e: toml::de::Error| {
+                anyhow::anyhow!("Failed to parse S3 config TOML: {}", e)
+            })?;
 
         // Convert to CampaignConfig
         let mut campaigns = Vec::new();
@@ -88,13 +90,30 @@ impl CampaignConfigSource for S3CampaignSource {
                 "active" => CampaignStatus::Active,
                 "paused" => CampaignStatus::Paused,
                 "completed" => CampaignStatus::Completed,
-                _ => return Err(anyhow::anyhow!("Invalid campaign status: {}", s3_campaign.status)),
+                _ => {
+                    return Err(anyhow::anyhow!(
+                        "Invalid campaign status: {}",
+                        s3_campaign.status
+                    ))
+                }
             };
 
             let start_date = NaiveDate::parse_from_str(&s3_campaign.start_date, "%Y-%m-%d")
-                .map_err(|e| anyhow::anyhow!("Invalid start_date format for campaign {}: {} (expected YYYY-MM-DD)", campaign_id, e))?;
-            let end_date = NaiveDate::parse_from_str(&s3_campaign.end_date, "%Y-%m-%d")
-                .map_err(|e| anyhow::anyhow!("Invalid end_date format for campaign {}: {} (expected YYYY-MM-DD)", campaign_id, e))?;
+                .map_err(|e| {
+                    anyhow::anyhow!(
+                        "Invalid start_date format for campaign {}: {} (expected YYYY-MM-DD)",
+                        campaign_id,
+                        e
+                    )
+                })?;
+            let end_date =
+                NaiveDate::parse_from_str(&s3_campaign.end_date, "%Y-%m-%d").map_err(|e| {
+                    anyhow::anyhow!(
+                        "Invalid end_date format for campaign {}: {} (expected YYYY-MM-DD)",
+                        campaign_id,
+                        e
+                    )
+                })?;
 
             // Validate date range
             if end_date <= start_date {
@@ -117,8 +136,9 @@ impl CampaignConfigSource for S3CampaignSource {
 
             campaigns.push(CampaignConfig {
                 id: s3_campaign.id,
-                token_address: Address::from_str(&s3_campaign.token_address)
-                    .map_err(|e| anyhow::anyhow!("Invalid token_address for campaign {}: {}", campaign_id, e))?,
+                token_address: Address::from_str(&s3_campaign.token_address).map_err(|e| {
+                    anyhow::anyhow!("Invalid token_address for campaign {}: {}", campaign_id, e)
+                })?,
                 total_amount: s3_campaign.total_amount,
                 start_date,
                 end_date,
@@ -129,4 +149,3 @@ impl CampaignConfigSource for S3CampaignSource {
         Ok(campaigns)
     }
 }
-

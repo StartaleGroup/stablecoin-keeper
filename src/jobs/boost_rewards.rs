@@ -50,9 +50,7 @@ impl CampaignConfig {
     }
 
     pub fn is_active_for_date(&self, date: NaiveDate) -> bool {
-        self.status == CampaignStatus::Active
-            && date >= self.start_date
-            && date <= self.end_date
+        self.status == CampaignStatus::Active && date >= self.start_date && date <= self.end_date
     }
 }
 
