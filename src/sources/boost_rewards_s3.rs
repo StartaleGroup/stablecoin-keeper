@@ -2,7 +2,7 @@ use crate::jobs::boost_rewards::{CampaignConfig, CampaignConfigSource, CampaignS
 use alloy::primitives::Address;
 use anyhow::Result;
 use aws_sdk_s3::Client as S3Client;
-use chrono::NaiveDate;
+use chrono::{Duration, NaiveDate, Utc};
 use serde::Deserialize;
 use std::str::FromStr;
 use toml;

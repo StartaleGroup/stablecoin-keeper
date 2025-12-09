@@ -1,7 +1,7 @@
 use crate::config::ChainConfig;
 use crate::jobs::boost_rewards::{BoostRewardsJob, CampaignConfig, CampaignConfigSource};
 use anyhow::Result;
-use chrono::{NaiveDate, Utc};
+use chrono::{NaiveDate, NaiveTime, Timelike, Utc};
 use std::time::Duration;
 
 // Service that runs continuously and processes campaigns from S3
@@ -35,23 +35,9 @@ impl BoostRewardsService {
     }
 
     fn parse_execution_time(time_str: &str) -> Result<(u32, u32)> {
-        let parts: Vec<&str> = time_str.split(':').collect();
-        if parts.len() != 2 {
-            return Err(anyhow::anyhow!("Invalid execution_time format: '{}'. Expected 'HH:MM' (e.g., '12:00')", time_str));
-        }
-        let hour: u32 = parts[0].parse()
-            .map_err(|_| anyhow::anyhow!("Invalid hour in execution_time: '{}'. Must be 0-23", parts[0]))?;
-        let minute: u32 = parts[1].parse()
-            .map_err(|_| anyhow::anyhow!("Invalid minute in execution_time: '{}'. Must be 0-59", parts[1]))?;
-        
-        if hour > 23 {
-            return Err(anyhow::anyhow!("Invalid hour in execution_time: {}. Must be 0-23", hour));
-        }
-        if minute > 59 {
-            return Err(anyhow::anyhow!("Invalid minute in execution_time: {}. Must be 0-59", minute));
-        }
-
-        Ok((hour, minute))
+        let time = NaiveTime::parse_from_str(time_str, "%H:%M")
+            .map_err(|_| anyhow::anyhow!("Invalid execution_time format: '{}'. Expected 'HH:MM' (e.g., '12:00')", time_str))?;
+        Ok((time.hour(), time.minute()))
     }
 
     pub async fn run(&self) -> Result<()> {
@@ -85,14 +71,22 @@ impl BoostRewardsService {
             let today = Utc::now().date_naive();
 
             // Process campaigns
-            match self.process_campaigns_for_today(today).await {
+            let execution_result = self.process_campaigns_for_today(today).await;
+            match &execution_result {
                 Ok(_) => {
                     println!("✅ Campaigns processed successfully for {}", today);
+                    // TODO: Send success metrics to monitoring system (e.g., CloudWatch, Prometheus)
                 }
                 Err(e) => {
                     eprintln!("❌ Error processing campaigns: {}", e);
+                    // TODO: Send failure metrics to monitoring system
+                    // TODO: Consider alerting mechanism for repeated failures
                 }
             }
+            
+            // Log execution status for monitoring
+            let status = if execution_result.is_ok() { "success" } else { "failure" };
+            println!("📊 Execution status for {}: {}", today, status);
 
             // In test mode, exit after one run
             if test_mode {
