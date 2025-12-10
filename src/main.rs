@@ -87,7 +87,7 @@ enum Commands {
         #[arg(long)]
         aws_region: Option<String>, // AWS region for KMS
         #[arg(long)]
-        s3_region: Option<String>, // AWS region for S3 
+        s3_region: Option<String>, // AWS region for S3
         #[arg(long)]
         test_mode: bool, // Skip wait and process immediately (for testing)
         #[arg(long)]
@@ -180,7 +180,7 @@ async fn main() -> Result<()> {
             execution_time,
         } => {
             let chain_config = setup_config(&config, kms_key_id, aws_region)?;
-            
+
             // Get S3 region: CLI arg -> env var -> KMS region
             let s3_region = s3_region
                 .or_else(|| std::env::var("S3_REGION").ok())
@@ -209,7 +209,7 @@ async fn main() -> Result<()> {
             println!("   Region: {}", s3_region);
             println!("   Bucket: {}", bucket);
             println!("   Key: {}", key);
-            
+
             let aws_config = aws_config::defaults(aws_config::BehaviorVersion::latest())
                 .region(aws_config::Region::new(s3_region.clone()))
                 .load()

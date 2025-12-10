@@ -118,12 +118,12 @@ impl BoostRewardsS3 {
         execution_result
     }
 
-      /// 
+    ///
     /// Logic:
     /// - If current hour > execution hour: process (execution time has passed today)
     /// - If current hour == execution hour && current minute >= execution minute: process
     /// - Otherwise: skip (too early or already processed)
-    /// 
+    ///
     /// This prevents duplicate processing even if cron runs multiple times in the same hour
     fn should_process_now(&self, now: chrono::DateTime<Utc>) -> bool {
         let current_hour = now.hour();

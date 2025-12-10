@@ -37,7 +37,6 @@ impl S3CampaignSource {
         }
     }
 }
-    
 
 #[async_trait::async_trait]
 impl CampaignConfigSource for S3CampaignSource {
