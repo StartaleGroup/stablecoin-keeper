@@ -118,25 +118,38 @@ impl BoostRewardsS3 {
         execution_result
     }
 
-    /// Check if current time is at or past the execution time for today
-    /// Note: In CronJob mode, this ensures we only process once per day
-    /// (when the execution hour arrives, subsequent hourly runs will skip)
+      /// 
+    /// Logic:
+    /// - If current hour > execution hour: process (execution time has passed today)
+    /// - If current hour == execution hour && current minute >= execution minute: process
+    /// - Otherwise: skip (too early or already processed)
+    /// 
+    /// This prevents duplicate processing even if cron runs multiple times in the same hour
     fn should_process_now(&self, now: chrono::DateTime<Utc>) -> bool {
         let current_hour = now.hour();
         let current_minute = now.minute();
         let execution_hour = self.execution_time.0;
         let execution_minute = self.execution_time.1;
 
-        // Only process if we're in the execution hour and at or past the execution minute
-        // This ensures we process once per day when the execution time arrives
+        // If we're past the execution hour, check if we should process
+        // Only process if execution_time was NOT at minute 0 (meaning we might have missed it)
+        // AND we're in the hour immediately after execution hour
+        if current_hour > execution_hour {
+            // Only process in the hour immediately after execution hour
+            // AND only if execution_minute > 0 (if execution_time is at :00, we already processed in that hour)
+            if execution_minute > 0 && current_hour == execution_hour + 1 && current_minute == 0 {
+                return true;
+            }
+            // Otherwise skip (already processed or too late)
+            return false;
+        }
+
+        // If we're in the execution hour, check if we're at or past the execution minute
         if current_hour == execution_hour {
             return current_minute >= execution_minute;
         }
 
-        // If we're past the execution hour, we've already processed (or missed the window)
-        // Don't process again to avoid duplicate processing
-        // Note: If execution time is missed (e.g., CronJob was down), it will process
-        // on the next day's execution hour
+        // Before execution hour, don't process
         false
     }
 
