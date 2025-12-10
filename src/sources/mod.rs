@@ -1,1 +1,1 @@
-pub mod boost_rewards_s3;
+pub mod s3_campaign_source;

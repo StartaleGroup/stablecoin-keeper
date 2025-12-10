@@ -1,5 +1,5 @@
 pub mod boost_rewards;
-pub mod boost_rewards_service;
+pub mod boost_rewards_s3;
 pub mod claim_yield;
 pub mod distribute_rewards;
 

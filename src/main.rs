@@ -77,17 +77,17 @@ enum Commands {
         #[arg(long)]
         dry_run: bool,
     },
-    BoostRewardsService {
+    BoostRewardsS3 {
         #[arg(long)]
         config: String,
         #[arg(long)]
         campaigns_s3: String, // Format: s3://bucket/key or bucket/key
         #[arg(long)]
-        poll_interval_seconds: Option<u64>, // Default: 3600 (1 hour)
-        #[arg(long)]
         kms_key_id: Option<String>,
         #[arg(long)]
-        aws_region: Option<String>,
+        aws_region: Option<String>, // AWS region for KMS
+        #[arg(long)]
+        s3_region: Option<String>, // AWS region for S3 
         #[arg(long)]
         test_mode: bool, // Skip wait and process immediately (for testing)
         #[arg(long)]
@@ -170,16 +170,23 @@ async fn main() -> Result<()> {
             )?;
             job.execute().await?;
         }
-        Commands::BoostRewardsService {
+        Commands::BoostRewardsS3 {
             config,
             campaigns_s3,
-            poll_interval_seconds,
             kms_key_id,
             aws_region,
+            s3_region,
             test_mode,
             execution_time,
         } => {
             let chain_config = setup_config(&config, kms_key_id, aws_region)?;
+            
+            // Get S3 region: CLI arg -> env var -> KMS region
+            let s3_region = s3_region
+                .or_else(|| std::env::var("S3_REGION").ok())
+                .or_else(|| std::env::var("AWS_REGION").ok())
+                .or_else(|| chain_config.kms.as_ref().and_then(|kms| kms.region.clone()))
+                .unwrap();
 
             // Parse S3 path (supports both s3://bucket/key and bucket/key)
             let (bucket, key) = if campaigns_s3.starts_with("s3://") {
@@ -197,21 +204,27 @@ async fn main() -> Result<()> {
                 (parts[0].to_string(), parts[1].to_string())
             };
 
-            // Initialize S3 client
-            let aws_config = aws_config::load_from_env().await;
+            // Initialize S3 client (same pattern as KMS)
+            println!("🔧 Initializing S3 client...");
+            println!("   Region: {}", s3_region);
+            println!("   Bucket: {}", bucket);
+            println!("   Key: {}", key);
+            
+            let aws_config = aws_config::defaults(aws_config::BehaviorVersion::latest())
+                .region(aws_config::Region::new(s3_region.clone()))
+                .load()
+                .await;
             let s3_client = aws_sdk_s3::Client::new(&aws_config);
 
             // Create S3 campaign source
             let campaign_source = Box::new(
-                crate::sources::boost_rewards_s3::S3CampaignSource::new(s3_client, bucket, key),
+                crate::sources::s3_campaign_source::S3CampaignSource::new(s3_client, bucket, key),
             );
 
             // Create and run service
-            let poll_interval = poll_interval_seconds.unwrap_or(3600);
-            let service = crate::jobs::boost_rewards_service::BoostRewardsService::new(
+            let service = crate::jobs::boost_rewards_s3::BoostRewardsS3::new(
                 chain_config,
                 campaign_source,
-                poll_interval,
                 execution_time,
             )?;
 

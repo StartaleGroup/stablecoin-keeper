@@ -3,16 +3,16 @@ use alloy::primitives::Address;
 use anyhow::Result;
 use aws_sdk_s3::Client as S3Client;
 use chrono::NaiveDate;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 use toml;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 struct S3CampaignsConfig {
     campaigns: Vec<S3Campaign>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 struct S3Campaign {
     id: String,
     token_address: String,
@@ -37,6 +37,7 @@ impl S3CampaignSource {
         }
     }
 }
+    
 
 #[async_trait::async_trait]
 impl CampaignConfigSource for S3CampaignSource {
@@ -94,7 +95,7 @@ impl CampaignConfigSource for S3CampaignSource {
                     return Err(anyhow::anyhow!(
                         "Invalid campaign status: {}",
                         s3_campaign.status
-                    ))
+                    ));
                 }
             };
 
