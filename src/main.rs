@@ -88,10 +88,6 @@ enum Commands {
         aws_region: Option<String>, // AWS region for KMS
         #[arg(long)]
         s3_region: Option<String>, // AWS region for S3
-        #[arg(long)]
-        test_mode: bool, // Skip wait and process immediately (for testing)
-        #[arg(long)]
-        execution_time: Option<String>, // Default: 00:00 UTC
     },
 }
 
@@ -176,12 +172,10 @@ async fn main() -> Result<()> {
             kms_key_id,
             aws_region,
             s3_region,
-            test_mode,
-            execution_time,
         } => {
             let chain_config = setup_config(&config, kms_key_id, aws_region)?;
 
-            // Get S3 region: CLI arg -> env var -> KMS region
+            // Get S3 region: CLI arg -> env var -> KMS region 
             let s3_region = s3_region
                 .or_else(|| std::env::var("S3_REGION").ok())
                 .or_else(|| std::env::var("AWS_REGION").ok())
@@ -221,18 +215,12 @@ async fn main() -> Result<()> {
                 crate::sources::s3_campaign_source::S3CampaignSource::new(s3_client, bucket, key),
             );
 
-            // Create and run service
-            let service = crate::jobs::boost_rewards_s3::BoostRewardsS3::new(
+            // Run job
+            let job = crate::jobs::boost_rewards_s3::BoostRewardsS3::new(
                 chain_config,
                 campaign_source,
-                execution_time,
-            )?;
-
-            if test_mode {
-                service.run_with_test_mode(true).await?;
-            } else {
-                service.run().await?;
-            }
+            );
+            job.run().await?;
         }
     }
 
