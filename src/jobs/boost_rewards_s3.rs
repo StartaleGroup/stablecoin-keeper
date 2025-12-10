@@ -13,10 +13,7 @@ pub struct BoostRewardsS3 {
 }
 
 impl BoostRewardsS3 {
-    pub fn new(
-        config: ChainConfig,
-        campaign_source: Box<dyn CampaignConfigSource>,
-    ) -> Self {
+    pub fn new(config: ChainConfig, campaign_source: Box<dyn CampaignConfigSource>) -> Self {
         Self {
             config,
             campaign_source,
@@ -35,9 +32,7 @@ impl BoostRewardsS3 {
         println!("   Found {} total campaigns in S3", all_campaigns.len());
 
         // Process campaigns for today
-        let execution_result = self
-            .process_campaigns_for_today_with_campaigns(today, all_campaigns)
-            .await;
+        let execution_result = self.process_campaigns_for_today(today, all_campaigns).await;
 
         // Handle execution result
         match &execution_result {
@@ -60,7 +55,7 @@ impl BoostRewardsS3 {
         execution_result
     }
 
-    async fn process_campaigns_for_today_with_campaigns(
+    async fn process_campaigns_for_today(
         &self,
         today: NaiveDate,
         all_campaigns: Vec<CampaignConfig>,
@@ -123,4 +118,3 @@ impl BoostRewardsS3 {
         job.execute().await
     }
 }
-

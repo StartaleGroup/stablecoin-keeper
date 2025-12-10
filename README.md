@@ -7,6 +7,7 @@ Automated USDSC yield distribution keeper for Ethereum and Soneium networks.
 A Rust-based keeper service that automates yield distribution across two networks:
 - **Ethereum**: Claims USDSC yield to treasury EOA
 - **Soneium**: Claims USDSC yield to RewardRedistributor and triggers distribution
+- **Boost Rewards**: Distributes boost tokens (e.g., ASTR, USDSC) to Earn Vault users proportionally based on their USDSC principal balance
 
 ## 🚀 Quick Start
 
@@ -34,6 +35,11 @@ A Rust-based keeper service that automates yield distribution across two network
    cargo run -- claim-yield --config=ethereum.toml --dry-run
    cargo run -- distribute-rewards --config=soneium.toml --dry-run
    ```
+
+4. **Setup S3 for Boost Rewards (optional):**
+   - Create an S3 bucket for campaign configurations
+   - Upload campaign TOML file (see `test_campaigns.toml` for format)
+   - Configure AWS credentials with S3 access
 
 ## 🔧 Configuration
 
@@ -92,6 +98,71 @@ cargo run -- claim-yield --config=configs/ethereum-sepolia.toml --kms-key-id=you
 cargo run -- claim-yield --config=configs/ethereum-sepolia.toml --dry-run
 ```
 
+### Boost Rewards S3 (Admin-Controlled Campaigns)
+
+The boost rewards S3 job reads campaign configurations from S3 and processes them daily. Campaigns are managed via an admin UI.
+
+**Prerequisites:**
+- S3 bucket with campaign configuration TOML file
+- AWS credentials configured (via environment variables or IAM role)
+- Keeper address funded with tokens for the campaign
+
+**Basic Usage:**
+```bash
+# Run boost rewards S3 job (reads campaigns from S3)
+cargo run -- boost-rewards-s3 \
+  --config=configs/ethereum-sepolia.toml \
+  --campaigns-s3=s3://bucket-name/path/to/campaigns.toml
+
+# With explicit S3 region
+cargo run -- boost-rewards-s3 \
+  --config=configs/ethereum-sepolia.toml \
+  --campaigns-s3=s3://bucket-name/path/to/campaigns.toml \
+  --s3-region=eu-central-1
+
+# With KMS configuration
+cargo run -- boost-rewards-s3 \
+  --config=configs/ethereum-sepolia.toml \
+  --campaigns-s3=s3://bucket-name/path/to/campaigns.toml \
+  --kms-key-id=your-kms-key-id \
+  --aws-region=eu-central-1
+```
+
+**S3 Path Format:**
+- Full S3 URI: `s3://bucket-name/path/to/campaigns.toml`
+- Short format: `bucket-name/path/to/campaigns.toml`
+
+**Environment Variables:**
+- `S3_REGION` - AWS region for S3 (defaults to `AWS_REGION` or KMS region)
+- `AWS_ACCESS_KEY_ID` - AWS access key (or use IAM role)
+- `AWS_SECRET_ACCESS_KEY` - AWS secret key (or use IAM role)
+- `AWS_REGION` - AWS region (used as fallback for S3 region)
+
+**Campaign Configuration Format:**
+See `test_campaigns.toml` for example:
+```toml
+[[campaigns]]
+id = "campaign-2025-01"
+token_address = "0x7e426d026f604d1c47b50059752122d8ab1e2c28"
+total_amount = 1000.0
+start_date = "2025-01-01"
+end_date = "2025-01-31"
+status = "active"
+```
+
+**Production Scheduling (Kubernetes CronJob):**
+```yaml
+# Run daily at 12:00 PM UTC
+schedule: "0 12 * * *"
+```
+
+**Important Notes:**
+- Campaigns are processed **once per day** when the cron job runs
+- To start a campaign **today**, create it before **12:00 PM UTC**
+- Fund the keeper address with the **total campaign amount** before creating the campaign
+- Multiple campaigns on the same day are processed **sequentially** with a 30-second delay between them
+- Campaigns using the same token are safe from nonce race conditions (sequential processing with confirmation)
+
 ### Production Scheduling
 ```bash
 # Every 10 minutes - Ethereum yield claiming
@@ -99,6 +170,9 @@ cargo run -- claim-yield --config=configs/ethereum-sepolia.toml --dry-run
 
 # Every 3 hours - Soneium distribution
 0 */3 * * * /path/to/vault-keeper distribute-rewards --config=configs/soneium-mainnet.toml
+
+# Daily at 12:00 PM UTC - Boost rewards from S3
+0 12 * * * /path/to/vault-keeper boost-rewards-s3 --config=configs/ethereum-sepolia.toml --campaigns-s3=s3://bucket/campaigns.toml
 ```
 
 ## 🏗️ Architecture
@@ -112,6 +186,8 @@ cargo run -- claim-yield --config=configs/ethereum-sepolia.toml --dry-run
 ### Job Types
 - **ClaimYield** - Claims USDSC yield to recipient (Ethereum → EOA, Soneium → RewardRedistributor)
 - **DistributeRewards** - Checks USDSC yield threshold, then triggers distribution to vaults (Soneium only)
+- **BoostRewardsS3** - Reads campaign configurations from S3 and distributes boost tokens to Earn Vault users daily
+- **BoostRewardsDistribute** - Manual single-campaign distribution (CLI-based, for Phase 1)
 
 ## 🔐 Security
 
@@ -142,10 +218,16 @@ src/
 ├── kms_signer.rs       # AWS KMS signer integration
 ├── contracts/          # Smart contract interfaces
 │   ├── usdsc.rs
-│   └── reward_redistributor.rs
-└── jobs/               # Keeper job implementations
-    ├── claim_yield.rs
-    └── distribute_rewards.rs
+│   ├── reward_redistributor.rs
+│   ├── erc20.rs        # ERC20 token interface
+│   └── earn_vault.rs   # Earn Vault interface
+├── jobs/               # Keeper job implementations
+│   ├── claim_yield.rs
+│   ├── distribute_rewards.rs
+│   ├── boost_rewards.rs      # Boost rewards distribution logic
+│   └── boost_rewards_s3.rs   # S3-based boost rewards cron job
+└── sources/            # Campaign configuration sources
+    └── s3_campaign_source.rs # S3 campaign source implementation
 
 tests/                 # Test suites
 ├── unit_tests.rs       # Pure unit tests

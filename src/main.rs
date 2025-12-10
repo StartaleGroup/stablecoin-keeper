@@ -175,7 +175,7 @@ async fn main() -> Result<()> {
         } => {
             let chain_config = setup_config(&config, kms_key_id, aws_region)?;
 
-            // Get S3 region: CLI arg -> env var -> KMS region 
+            // Get S3 region: CLI arg -> env var -> KMS region
             let s3_region = s3_region
                 .or_else(|| std::env::var("S3_REGION").ok())
                 .or_else(|| std::env::var("AWS_REGION").ok())
@@ -216,10 +216,8 @@ async fn main() -> Result<()> {
             );
 
             // Run job
-            let job = crate::jobs::boost_rewards_s3::BoostRewardsS3::new(
-                chain_config,
-                campaign_source,
-            );
+            let job =
+                crate::jobs::boost_rewards_s3::BoostRewardsS3::new(chain_config, campaign_source);
             job.run().await?;
         }
     }
