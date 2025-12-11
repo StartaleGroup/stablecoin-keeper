@@ -4,6 +4,7 @@ mod contracts;
 mod jobs;
 mod kms_signer;
 mod retry;
+mod sources;
 mod transaction_monitor;
 
 use anyhow::Result;
@@ -75,6 +76,18 @@ enum Commands {
 
         #[arg(long)]
         dry_run: bool,
+    },
+    BoostRewardsS3 {
+        #[arg(long)]
+        config: String,
+        #[arg(long)]
+        campaigns_s3: String, // Format: s3://bucket/key or bucket/key
+        #[arg(long)]
+        kms_key_id: Option<String>,
+        #[arg(long)]
+        aws_region: Option<String>, // AWS region for KMS
+        #[arg(long)]
+        s3_region: Option<String>, // AWS region for S3
     },
 }
 
@@ -152,6 +165,60 @@ async fn main() -> Result<()> {
                 dry_run,
             )?;
             job.execute().await?;
+        }
+        Commands::BoostRewardsS3 {
+            config,
+            campaigns_s3,
+            kms_key_id,
+            aws_region,
+            s3_region,
+        } => {
+            let chain_config = setup_config(&config, kms_key_id, aws_region)?;
+
+            // Get S3 region: CLI arg -> env var -> KMS region
+            let s3_region = s3_region
+                .or_else(|| std::env::var("S3_REGION").ok())
+                .or_else(|| std::env::var("AWS_REGION").ok())
+                .or_else(|| chain_config.kms.as_ref().and_then(|kms| kms.region.clone()))
+                .unwrap();
+
+            // Parse S3 path (supports both s3://bucket/key and bucket/key)
+            let (bucket, key) = if campaigns_s3.starts_with("s3://") {
+                let path = campaigns_s3.strip_prefix("s3://").unwrap();
+                let parts: Vec<&str> = path.splitn(2, '/').collect();
+                if parts.len() != 2 {
+                    return Err(anyhow::anyhow!("Invalid S3 path format: {}", campaigns_s3));
+                }
+                (parts[0].to_string(), parts[1].to_string())
+            } else {
+                let parts: Vec<&str> = campaigns_s3.splitn(2, '/').collect();
+                if parts.len() != 2 {
+                    return Err(anyhow::anyhow!("Invalid S3 path format: {}", campaigns_s3));
+                }
+                (parts[0].to_string(), parts[1].to_string())
+            };
+
+            // Initialize S3 client (same pattern as KMS)
+            println!("🔧 Initializing S3 client...");
+            println!("   Region: {}", s3_region);
+            println!("   Bucket: {}", bucket);
+            println!("   Key: {}", key);
+
+            let aws_config = aws_config::defaults(aws_config::BehaviorVersion::latest())
+                .region(aws_config::Region::new(s3_region.clone()))
+                .load()
+                .await;
+            let s3_client = aws_sdk_s3::Client::new(&aws_config);
+
+            // Create S3 campaign source
+            let campaign_source = Box::new(
+                crate::sources::s3_campaign_source::S3CampaignSource::new(s3_client, bucket, key),
+            );
+
+            // Run job
+            let job =
+                crate::jobs::boost_rewards_s3::BoostRewardsS3::new(chain_config, campaign_source);
+            job.run().await?;
         }
     }
 
