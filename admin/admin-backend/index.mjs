@@ -12,6 +12,7 @@ const BUCKET = process.env.S3_BUCKET;
 const KEY = process.env.S3_KEY;
 const DYNAMODB_TABLE = process.env.DYNAMODB_TABLE || 'vault-keeper-auth'; // DynamoDB table for tokens and nonces
 const AWS_REGION = process.env.AWS_REGION || S3_REGION || 'eu-central-1';
+const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim()).filter(o => o.length > 0);
 
 // Initialize AWS clients
 const s3Client = new S3Client({ region: S3_REGION });
@@ -218,9 +219,27 @@ export const handler = async (event) => {
     try {
         const httpMethod = event?.httpMethod || 'GET';
         
+        // Get origin from request
+        const requestOrigin = event.headers?.Origin || event.headers?.origin || '';
+        
+        // Validate origin against allowed list
+        let allowedOrigin = '*';
+        if (requestOrigin) {
+            // Check if origin matches allowed list (exact match or starts with)
+            const isAllowed = ALLOWED_ORIGINS.some(allowed => 
+                requestOrigin === allowed || requestOrigin.startsWith(allowed + '/')
+            );
+            if (isAllowed) {
+                allowedOrigin = requestOrigin;
+            } else {
+                // Origin not allowed - set to 'null' to block
+                allowedOrigin = 'null';
+            }
+        }
+        
         const headers = {
             'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Origin': allowedOrigin,
             'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
             'Access-Control-Allow-Headers': 'Content-Type,Authorization'
         };
@@ -380,9 +399,14 @@ export const handler = async (event) => {
     } catch (error) {
         // Top-level error handler - catch any unhandled errors
         console.error('Unhandled error in Lambda handler:', error);
+        const requestOrigin = event?.headers?.Origin || event?.headers?.origin || '';
+        const allowedOrigin = ALLOWED_ORIGINS.some(allowed => 
+            requestOrigin === allowed || requestOrigin.startsWith(allowed + '/')
+        ) ? requestOrigin : 'null';
+        
         const headers = {
             'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Origin': allowedOrigin,
             'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
             'Access-Control-Allow-Headers': 'Content-Type,Authorization'
         };
