@@ -783,12 +783,25 @@
         }
 
         // Connect wallet and authenticate
+        let isConnecting = false;
         async function connectWallet() {
+            // Prevent multiple simultaneous connection attempts
+            if (isConnecting) {
+                return;
+            }
+            
+            // Check if already connected
+            if (connectedAddress && authToken) {
+                return;
+            }
+            
             // Check if ethers.js is loaded
             if (typeof ethers === 'undefined') {
                 showAlert('Wallet library not loaded. Please refresh the page.', 'error');
                 return;
             }
+            
+            isConnecting = true;
 
             // Check for Web3 wallet - try multiple ways
             let ethereum = window.ethereum;
@@ -796,12 +809,6 @@
                 // Try alternative injection points
                 ethereum = window.web3?.currentProvider;
             }
-            
-            console.log('🔍 Wallet detection:', {
-                'window.ethereum': typeof window.ethereum !== 'undefined',
-                'window.web3': typeof window.web3 !== 'undefined',
-                'ethereum var': !!ethereum
-            });
             
             if (!ethereum) {
                 let errorMsg = 'MetaMask not detected.\n\n';
@@ -823,18 +830,8 @@
                 }
                 
                 showAlert(errorMsg, 'error');
-                console.error('❌ MetaMask detection failed');
-                console.error('Protocol:', window.location.protocol);
-                console.error('URL:', window.location.href);
-                console.error('Available window properties:', Object.keys(window).filter(k => 
-                    k.toLowerCase().includes('ethereum') || 
-                    k.toLowerCase().includes('web3') ||
-                    k.toLowerCase().includes('meta')
-                ));
                 return;
             }
-            
-            console.log('✅ MetaMask detected, proceeding with connection...');
 
             try {
                 // Request account access
@@ -844,21 +841,22 @@
                     return;
                 }
                 const address = accounts[0];
-                console.log('✅ Connected wallet address:', address);
                 
                 // Get provider and signer
                 const provider = new ethers.providers.Web3Provider(ethereum);
                 const signer = provider.getSigner();
                 
-                // Create message to sign
+                // Create message to sign (include random nonce to ensure uniqueness)
                 const timestamp = Date.now();
-                const message = `Sign in to Boost Rewards Admin\n\nAddress: ${address}\nTimestamp: ${timestamp}`;
+                const random1 = Math.random().toString(36).substring(2, 15);
+                const random2 = Math.random().toString(36).substring(2, 15);
+                const nonce = `${random1}-${random2}-${performance.now()}`;
+                const message = `Sign in to Boost Rewards Admin\n\nAddress: ${address}\nTimestamp: ${timestamp}\nNonce: ${nonce}`;
                 
                 // Sign message
                 const signature = await signer.signMessage(message);
                 
                 // Send to Lambda for verification
-                console.log('📤 Sending auth request to:', `${API_URL}/auth`);
                 let response;
                 try {
                     response = await fetch(`${API_URL}/auth`, {
@@ -869,19 +867,15 @@
                         },
                         body: JSON.stringify({ address, message, signature })
                     });
-                    console.log('📥 Response status:', response.status, response.statusText);
                 } catch (fetchError) {
-                    console.error('❌ Fetch error:', fetchError);
                     throw new Error(`Network error: ${fetchError.message}. Please check:\n1. API Gateway URL is correct\n2. CORS is enabled on API Gateway\n3. Lambda function is deployed\n4. Check browser console for details`);
                 }
 
                 let result;
                 try {
                     const responseText = await response.text();
-                    console.log('📥 Response body:', responseText);
                     result = JSON.parse(responseText);
                 } catch (parseError) {
-                    console.error('❌ JSON parse error:', parseError);
                     throw new Error(`Invalid response from server. Status: ${response.status}. Please check API Gateway configuration.`);
                 }
 
@@ -904,12 +898,8 @@
                 // Load campaigns after authentication
                 await loadCampaigns();
             } catch (error) {
-                console.error('❌ Wallet connection error:', error);
-                console.error('Error details:', {
-                    name: error.name,
-                    message: error.message,
-                    stack: error.stack
-                });
+                isConnecting = false;
+                console.error('Wallet connection error:', error);
                 
                 // Show detailed error message
                 let errorMsg = error.message || 'Failed to connect wallet';
@@ -923,6 +913,8 @@
                               `Error: ${error.message}`;
                 }
                 showAlert(errorMsg, 'error');
+            } finally {
+                isConnecting = false;
             }
         }
 
@@ -1013,7 +1005,6 @@
             const protocolCheck = checkProtocol();
             if (protocolCheck.isFileProtocol) {
                 showAlert(protocolCheck.message, 'error');
-                console.warn('⚠️ Running from file:// - MetaMask may not inject window.ethereum');
             }
             
             // Set minimum date to today
