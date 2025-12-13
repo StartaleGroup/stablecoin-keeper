@@ -2,3 +2,4 @@
 .env
 TECHNICAL_DESIGN.md
 .DS_Store
+node_modules
