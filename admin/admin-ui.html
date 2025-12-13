@@ -704,13 +704,29 @@
         let connectedAddress = null;
 
         // Check if wallet is already connected
-        function checkWalletConnection() {
+        async function checkWalletConnection() {
             const stored = localStorage.getItem('walletAuth');
             if (stored) {
                 try {
                     const { address, token, timestamp } = JSON.parse(stored);
-                    // Token expires after 24 hours
+                    // Token expires after 24 hours (matches backend)
                     if (Date.now() - timestamp < 24 * 60 * 60 * 1000) {
+                        // Check if MetaMask account matches stored address
+                        if (window.ethereum) {
+                            try {
+                                const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+                                if (accounts && accounts.length > 0) {
+                                    const currentAddress = accounts[0].toLowerCase();
+                                    // If account changed, clear stored auth
+                                    if (currentAddress !== address.toLowerCase()) {
+                                        localStorage.removeItem('walletAuth');
+                                        return false;
+                                    }
+                                }
+                            } catch (e) {
+                                console.warn('Failed to check MetaMask accounts:', e);
+                            }
+                        }
                         authToken = token;
                         connectedAddress = address;
                         updateWalletUI();
@@ -790,10 +806,7 @@
                 return;
             }
             
-            // Check if already connected
-            if (connectedAddress && authToken) {
-                return;
-            }
+            // Allow reconnection to switch accounts - don't block if already connected
             
             // Check if ethers.js is loaded
             if (typeof ethers === 'undefined') {
@@ -834,23 +847,40 @@
             }
 
             try {
-                // Request account access
+                // Request account access (this will prompt user to select account if multiple)
                 const accounts = await ethereum.request({ method: 'eth_requestAccounts' });
                 if (!accounts || accounts.length === 0) {
                     showAlert('No wallet accounts found. Please unlock your wallet.', 'error');
+                    isConnecting = false;
                     return;
                 }
                 const address = accounts[0];
+                
+                // If switching accounts, clear old auth
+                if (connectedAddress && connectedAddress.toLowerCase() !== address.toLowerCase()) {
+                    console.log('Account changed, clearing old authentication');
+                    authToken = null;
+                    connectedAddress = null;
+                    localStorage.removeItem('walletAuth');
+                }
                 
                 // Get provider and signer
                 const provider = new ethers.providers.Web3Provider(ethereum);
                 const signer = provider.getSigner();
                 
-                // Create message to sign (include random nonce to ensure uniqueness)
+                // Create message to sign (include cryptographically secure nonce to ensure uniqueness)
                 const timestamp = Date.now();
-                const random1 = Math.random().toString(36).substring(2, 15);
-                const random2 = Math.random().toString(36).substring(2, 15);
-                const nonce = `${random1}-${random2}-${performance.now()}`;
+                // Use Web Crypto API for cryptographically secure random values
+                const cryptoAPI = window.crypto || window.msCrypto; // Fallback for older browsers
+                if (!cryptoAPI || !cryptoAPI.getRandomValues) {
+                    throw new Error('Web Crypto API not available. Please use a modern browser.');
+                }
+                const randomBytes = new Uint8Array(16);
+                cryptoAPI.getRandomValues(randomBytes);
+                const randomHex = Array.from(randomBytes)
+                    .map(b => b.toString(16).padStart(2, '0'))
+                    .join('');
+                const nonce = `${randomHex}-${timestamp}-${performance.now()}`;
                 const message = `Sign in to Boost Rewards Admin\n\nAddress: ${address}\nTimestamp: ${timestamp}\nNonce: ${nonce}`;
                 
                 // Sign message
@@ -868,7 +898,7 @@
                         body: JSON.stringify({ address, message, signature })
                     });
                 } catch (fetchError) {
-                    throw new Error(`Network error: ${fetchError.message}. Please check:\n1. API Gateway URL is correct\n2. CORS is enabled on API Gateway\n3. Lambda function is deployed\n4. Check browser console for details`);
+                    throw new Error(`Network error: ${fetchError.message}.`);
                 }
 
                 let result;
@@ -905,11 +935,6 @@
                 let errorMsg = error.message || 'Failed to connect wallet';
                 if (error.message?.includes('Failed to fetch') || error.message?.includes('Network error')) {
                     errorMsg = `Network Error: Cannot reach API Gateway.\n\n` +
-                              `Please check:\n` +
-                              `1. API Gateway URL: ${API_URL}\n` +
-                              `2. CORS is enabled on API Gateway\n` +
-                              `3. Lambda function is deployed\n` +
-                              `4. Check browser console (F12) for details\n\n` +
                               `Error: ${error.message}`;
                 }
                 showAlert(errorMsg, 'error');
@@ -1031,13 +1056,15 @@
             console.log('Current URL:', window.location.href);
             
             // Check for existing wallet connection
-            if (checkWalletConnection()) {
-                loadCampaigns();
-            } else {
-                updateWalletUI();
-                // Show message to connect wallet (loadCampaigns will handle this)
-                loadCampaigns(); // This will show the "Connect Wallet" message since authToken is null
-            }
+            checkWalletConnection().then(connected => {
+                if (connected) {
+                    loadCampaigns();
+                } else {
+                    updateWalletUI();
+                    // Show message to connect wallet (loadCampaigns will handle this)
+                    loadCampaigns(); // This will show the "Connect Wallet" message since authToken is null
+                }
+            });
             
             // Initialize form button state
             updateFormButtonState();
