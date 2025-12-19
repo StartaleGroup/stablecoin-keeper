@@ -3,8 +3,8 @@ name: Deploy Admin UI
 on:
   push:
     branches:
-      - main
-      - production
+      - main        # Production deployments
+      - staging     # Staging deployments
     paths:
       - 'admin/**'
   workflow_dispatch:
@@ -35,13 +35,16 @@ jobs:
       
       - name: Configure API URL from GitHub Secrets
         run: |
-          # Determine environment
+          # Determine environment based on branch or manual input
           if [ "${{ github.event.inputs.environment }}" == "staging" ] || [ "${{ github.ref }}" == "refs/heads/staging" ]; then
             ENV="staging"
             API_URL="${{ secrets.STAGING_API_URL }}"
+            echo "🌿 Deploying STAGING environment"
           else
+            # main branch = production
             ENV="production"
             API_URL="${{ secrets.PRODUCTION_API_URL }}"
+            echo "🚀 Deploying PRODUCTION environment"
           fi
           
           # Generate config.js from secret
