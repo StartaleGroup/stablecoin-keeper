@@ -682,16 +682,9 @@
     <script>
         const API_URL = API_CONFIG.API_URL;
         
-        // Keeper Configuration
+        // Keeper Configuration (Production only)
         // Update these with your actual keeper addresses, token addresses, and RPC URLs
         const KEEPER_CONFIG = {
-            staging: {
-                name: 'Staging',
-                keeperAddress: '0x4A723734f1Da6707874F209a16E9C5F70069a7AF', 
-                usdscAddress: '0x7E426d026f604d1c47b50059752122d8ab1E2C28',
-                rpcUrl: 'https://0xrpc.io/sep',
-                chainId: 11155111 // Ethereum Sepolia
-            },
             production: {
                 name: 'Production',
                 keeperAddress: '0x86bE13a26d548FA5407Ee3E5a8321B4E1019333C',
@@ -1488,7 +1481,7 @@
             const container = document.getElementById('keeper-balances-container');
             
             // Check if configuration is set
-            if (!KEEPER_CONFIG.staging.keeperAddress || !KEEPER_CONFIG.production.keeperAddress) {
+            if (!KEEPER_CONFIG.production || !KEEPER_CONFIG.production.keeperAddress) {
                 container.innerHTML = `
                     <div class="empty-state">
                         <div class="empty-state-icon">⚙️</div>
@@ -1502,12 +1495,10 @@
             container.innerHTML = '<div class="loading"><div class="spinner"></div><p>Loading keeper balances...</p></div>';
             
             try {
-                const balances = await Promise.all([
-                    fetchKeeperBalance('staging'),
-                    fetchKeeperBalance('production')
-                ]);
+                // Only load production keeper balance
+                const balance = await fetchKeeperBalance('production');
                 
-                renderKeeperBalances(balances);
+                renderKeeperBalances([balance]);
             } catch (error) {
                 console.error('Error loading keeper balances:', error);
                 container.innerHTML = `
