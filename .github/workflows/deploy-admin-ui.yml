@@ -1,0 +1,63 @@
+name: Deploy Admin UI
+
+on:
+  push:
+    branches:
+      - main
+      - production
+    paths:
+      - 'admin/**'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - staging
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+      
+      - name: Configure API URL from GitHub Secrets
+        run: |
+          # Determine environment
+          if [ "${{ github.event.inputs.environment }}" == "staging" ] || [ "${{ github.ref }}" == "refs/heads/staging" ]; then
+            ENV="staging"
+            API_URL="${{ secrets.STAGING_API_URL }}"
+          else
+            ENV="production"
+            API_URL="${{ secrets.PRODUCTION_API_URL }}"
+          fi
+          
+          # Generate config.js from secret
+          if [ -n "$API_URL" ]; then
+            echo "const API_CONFIG = { API_URL: '$API_URL' };" > admin/config.js
+            echo "✅ Using $ENV API URL from GitHub Secrets"
+          else
+            echo "⚠️ Secret not found, using default config.js"
+          fi
+      
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: 'admin'
+      
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
