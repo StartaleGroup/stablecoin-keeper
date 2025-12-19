@@ -33,32 +33,38 @@ jobs:
       - name: Setup Pages
         uses: actions/configure-pages@v4
       
-      - name: Configure API URL from GitHub Secrets
+      - name: Prepare Deployment Structure
         run: |
-          # Determine environment based on branch or manual input
-          if [ "${{ github.event.inputs.environment }}" == "staging" ] || [ "${{ github.ref }}" == "refs/heads/staging" ]; then
-            ENV="staging"
-            API_URL="${{ secrets.STAGING_API_URL }}"
-            echo "🌿 Deploying STAGING environment"
-          else
-            # main branch = production
-            ENV="production"
-            API_URL="${{ secrets.PRODUCTION_API_URL }}"
-            echo "🚀 Deploying PRODUCTION environment"
+          # Create deployment root directory
+          mkdir -p _site
+          
+          # Copy admin files to root (production)
+          cp -r admin/* _site/
+          
+          # Generate production config.js
+          if [ -n "${{ secrets.PRODUCTION_API_URL }}" ]; then
+            echo "const API_CONFIG = { API_URL: '${{ secrets.PRODUCTION_API_URL }}' };" > _site/config.js
+            echo "✅ Production config.js generated"
           fi
           
-          # Generate config.js from secret
-          if [ -n "$API_URL" ]; then
-            echo "const API_CONFIG = { API_URL: '$API_URL' };" > admin/config.js
-            echo "✅ Using $ENV API URL from GitHub Secrets"
-          else
-            echo "⚠️ Secret not found, using default config.js"
+          # Create staging subdirectory
+          mkdir -p _site/admin-staging
+          cp -r admin/* _site/admin-staging/
+          
+          # Generate staging config.js
+          if [ -n "${{ secrets.STAGING_API_URL }}" ]; then
+            echo "const API_CONFIG = { API_URL: '${{ secrets.STAGING_API_URL }}' };" > _site/admin-staging/config.js
+            echo "✅ Staging config.js generated"
           fi
+          
+          # List structure for verification
+          echo "📁 Deployment structure:"
+          find _site -type f -name "*.html" -o -name "*.js" | head -10
       
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: 'admin'
+          path: '_site'
       
       - name: Deploy to GitHub Pages
         id: deployment
