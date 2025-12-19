@@ -33,31 +33,38 @@ jobs:
       - name: Setup Pages
         uses: actions/configure-pages@v4
       
-      - name: Prepare Production Deployment
+      - name: Prepare Deployment Structure
         run: |
-          # Always prepare production (root)
+          # Create deployment root directory
+          mkdir -p _site
+          
+          # Copy admin files to root (production)
+          cp -r admin/* _site/
+          
+          # Generate production config.js
           if [ -n "${{ secrets.PRODUCTION_API_URL }}" ]; then
-            echo "const API_CONFIG = { API_URL: '${{ secrets.PRODUCTION_API_URL }}' };" > admin/config.js
+            echo "const API_CONFIG = { API_URL: '${{ secrets.PRODUCTION_API_URL }}' };" > _site/config.js
             echo "✅ Production config.js generated"
           fi
-      
-      - name: Prepare Staging Deployment
-        run: |
-          # Always prepare staging (admin-staging/)
-          mkdir -p admin-staging
-          cp -r admin/* admin-staging/
           
+          # Create staging subdirectory
+          mkdir -p _site/admin-staging
+          cp -r admin/* _site/admin-staging/
+          
+          # Generate staging config.js
           if [ -n "${{ secrets.STAGING_API_URL }}" ]; then
-            echo "const API_CONFIG = { API_URL: '${{ secrets.STAGING_API_URL }}' };" > admin-staging/config.js
+            echo "const API_CONFIG = { API_URL: '${{ secrets.STAGING_API_URL }}' };" > _site/admin-staging/config.js
             echo "✅ Staging config.js generated"
           fi
+          
+          # List structure for verification
+          echo "📁 Deployment structure:"
+          find _site -type f -name "*.html" -o -name "*.js" | head -10
       
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: |
-            admin
-            admin-staging
+          path: '_site'
       
       - name: Deploy to GitHub Pages
         id: deployment
