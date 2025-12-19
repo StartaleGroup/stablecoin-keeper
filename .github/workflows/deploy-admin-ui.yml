@@ -5,8 +5,6 @@ on:
     branches:
       - main        # Production deployments
       - staging     # Staging deployments
-    paths:
-      - 'admin/**'
   workflow_dispatch:
     inputs:
       environment:
@@ -35,36 +33,41 @@ jobs:
       
       - name: Prepare Deployment Structure
         run: |
-          # Create deployment root directory
-          mkdir -p _site
-          
-          # Copy admin files to root (production)
-          cp -r admin/* _site/
+          # Copy admin-ui.html to root (production)
+          cp admin/admin-ui.html .
           
           # Generate production config.js
           if [ -n "${{ secrets.PRODUCTION_API_URL }}" ]; then
-            echo "const API_CONFIG = { API_URL: '${{ secrets.PRODUCTION_API_URL }}' };" > _site/config.js
+            echo "const API_CONFIG = { API_URL: '${{ secrets.PRODUCTION_API_URL }}' };" > config.js
             echo "✅ Production config.js generated"
+          else
+            echo "⚠️ PRODUCTION_API_URL secret not found"
           fi
           
           # Create staging subdirectory
-          mkdir -p _site/admin-staging
-          cp -r admin/* _site/admin-staging/
+          mkdir -p admin-staging
+          cp admin/admin-ui.html admin-staging/
           
           # Generate staging config.js
           if [ -n "${{ secrets.STAGING_API_URL }}" ]; then
-            echo "const API_CONFIG = { API_URL: '${{ secrets.STAGING_API_URL }}' };" > _site/admin-staging/config.js
+            echo "const API_CONFIG = { API_URL: '${{ secrets.STAGING_API_URL }}' };" > admin-staging/config.js
             echo "✅ Staging config.js generated"
+          else
+            echo "⚠️ STAGING_API_URL secret not found"
           fi
           
           # List structure for verification
           echo "📁 Deployment structure:"
-          find _site -type f -name "*.html" -o -name "*.js" | head -10
+          echo "Root (production):"
+          ls -la admin-ui.html config.js 2>/dev/null || echo "Files missing in root"
+          echo "---"
+          echo "Staging:"
+          ls -la admin-staging/admin-ui.html admin-staging/config.js 2>/dev/null || echo "Files missing in staging"
       
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: '_site'
+          path: '.'
       
       - name: Deploy to GitHub Pages
         id: deployment
