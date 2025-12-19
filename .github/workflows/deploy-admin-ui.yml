@@ -33,32 +33,31 @@ jobs:
       - name: Setup Pages
         uses: actions/configure-pages@v4
       
-      - name: Configure API URL from GitHub Secrets
+      - name: Prepare Production Deployment
         run: |
-          # Determine environment based on branch or manual input
-          if [ "${{ github.event.inputs.environment }}" == "staging" ] || [ "${{ github.ref }}" == "refs/heads/staging" ]; then
-            ENV="staging"
-            API_URL="${{ secrets.STAGING_API_URL }}"
-            echo "🌿 Deploying STAGING environment"
-          else
-            # main branch = production
-            ENV="production"
-            API_URL="${{ secrets.PRODUCTION_API_URL }}"
-            echo "🚀 Deploying PRODUCTION environment"
+          # Always prepare production (root)
+          if [ -n "${{ secrets.PRODUCTION_API_URL }}" ]; then
+            echo "const API_CONFIG = { API_URL: '${{ secrets.PRODUCTION_API_URL }}' };" > admin/config.js
+            echo "✅ Production config.js generated"
           fi
+      
+      - name: Prepare Staging Deployment
+        run: |
+          # Always prepare staging (admin-staging/)
+          mkdir -p admin-staging
+          cp -r admin/* admin-staging/
           
-          # Generate config.js from secret
-          if [ -n "$API_URL" ]; then
-            echo "const API_CONFIG = { API_URL: '$API_URL' };" > admin/config.js
-            echo "✅ Using $ENV API URL from GitHub Secrets"
-          else
-            echo "⚠️ Secret not found, using default config.js"
+          if [ -n "${{ secrets.STAGING_API_URL }}" ]; then
+            echo "const API_CONFIG = { API_URL: '${{ secrets.STAGING_API_URL }}' };" > admin-staging/config.js
+            echo "✅ Staging config.js generated"
           fi
       
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: 'admin'
+          path: |
+            admin
+            admin-staging
       
       - name: Deploy to GitHub Pages
         id: deployment
