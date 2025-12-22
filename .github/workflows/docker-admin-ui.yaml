@@ -48,7 +48,7 @@ jobs:
       - name: Log in to Docker registry
         uses: docker/login-action@v3
         with:
-          registry: ${{ secrets.DOCKER_REGISTRY_ADMIN }}
+          registry: ${{ secrets.DOCKER_REGISTRY }}
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
@@ -56,7 +56,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ secrets.DOCKER_REGISTRY_ADMIN }}/usdsc/admin-ui
+          images: ${{ secrets.DOCKER_REGISTRY }}/usdsc/admin-ui
           tags: |
             type=raw,value=${{ env.IMAGE_TAG }}
             type=ref,event=branch
