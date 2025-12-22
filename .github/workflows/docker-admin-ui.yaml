@@ -1,0 +1,75 @@
+name: Build and Push Admin UI Docker Image
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - admin-ui-v*
+    paths:
+      - 'admin/**'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment (production/staging)'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - staging
+
+jobs:
+  docker:
+    runs-on: ubuntu-latest
+    env:
+      TAG_NAME: ${{ github.ref_name }}
+      ENVIRONMENT: ${{ github.event.inputs.environment || 'production' }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set API URL based on environment
+        id: set-api-url
+        run: |
+          if [ "$ENVIRONMENT" == "staging" ]; then
+            API_URL="${{ secrets.STAGING_API_URL }}"
+            IMAGE_TAG="staging"
+          else
+            API_URL="${{ secrets.PRODUCTION_API_URL }}"
+            IMAGE_TAG="latest"
+          fi
+          echo "API_URL=${API_URL}" >> $GITHUB_ENV
+          echo "IMAGE_TAG=${IMAGE_TAG}" >> $GITHUB_ENV
+          echo "Environment: $ENVIRONMENT"
+          echo "Image tag: $IMAGE_TAG"
+
+      - name: Log in to Docker registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ secrets.DOCKER_REGISTRY_ADMIN }}
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Image metadata (tags, labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ secrets.DOCKER_REGISTRY_ADMIN }}/usdsc/admin-ui
+          tags: |
+            type=raw,value=${{ env.IMAGE_TAG }}
+            type=ref,event=branch
+            type=sha,prefix={{branch}}-
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./admin
+          file: ./admin/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            API_URL=${{ env.API_URL }}
+
