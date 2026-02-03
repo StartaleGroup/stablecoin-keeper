@@ -1,4 +1,5 @@
 use crate::config::ChainConfig;
+use crate::jobs::boost_rewards::CampaignStatus;
 use crate::jobs::boost_rewards::{BoostRewardsJob, CampaignConfig, CampaignConfigSource};
 use anyhow::Result;
 use chrono::{NaiveDate, Utc};
@@ -64,7 +65,7 @@ impl BoostRewardsS3 {
         println!("   Found {} total campaigns", all_campaigns.len());
 
         // Filter and collect active campaigns for today
-        let mut active_campaigns: Vec<_> = all_campaigns
+        let active_campaigns: Vec<_> = all_campaigns
             .into_iter()
             .filter(|x| x.is_active_for_date(today))
             .collect();
@@ -79,11 +80,39 @@ impl BoostRewardsS3 {
             return Ok(());
         }
 
+        // Filter out campaigns that were already processed today (idempotency check)
+        let mut campaigns_to_process: Vec<_> = active_campaigns
+            .iter()
+            .filter(|campaign| {
+                if let Some(last_date) = campaign.last_distribution_date {
+                    if last_date >= today {
+                        println!(
+                            "   ⏭️  Skipping campaign {} - already processed on {}",
+                            campaign.id, last_date
+                        );
+                        return false;
+                    }
+                }
+                true
+            })
+            .cloned()
+            .collect();
+
+        println!(
+            "   Found {} campaigns to process (after idempotency check)",
+            campaigns_to_process.len()
+        );
+
+        if campaigns_to_process.is_empty() {
+            println!("   All campaigns already processed today, skipping...");
+            return Ok(());
+        }
+
         // Sort campaigns by start date (earliest first)
-        active_campaigns.sort_by_key(|x| x.start_date);
+        campaigns_to_process.sort_by_key(|x| x.start_date);
 
         // Process each campaign sequentially
-        for (index, campaign) in active_campaigns.iter().enumerate() {
+        for (index, campaign) in campaigns_to_process.iter().enumerate() {
             // Add delay before processing (except for the first campaign)
             if index > 0 {
                 println!(
@@ -97,10 +126,17 @@ impl BoostRewardsS3 {
                 "🎯 Processing campaign: {} ({}/{})",
                 campaign.id,
                 index + 1,
-                active_campaigns.len()
+                campaigns_to_process.len()
             );
-            match self.process_single_campaign(campaign).await {
-                Ok(_) => println!("   ✅ Campaign {} completed successfully", campaign.id),
+
+            let is_last_day = today >= campaign.end_date;
+            match self
+                .process_single_campaign(campaign, today, is_last_day)
+                .await
+            {
+                Ok(_) => {
+                    println!("   ✅ Campaign {} completed successfully", campaign.id);
+                }
                 Err(e) => {
                     eprintln!("   ❌ Campaign {} failed: {}", campaign.id, e);
                     // Continue with next campaign
@@ -111,10 +147,40 @@ impl BoostRewardsS3 {
         Ok(())
     }
 
-    async fn process_single_campaign(&self, campaign: &CampaignConfig) -> Result<()> {
+    async fn process_single_campaign(
+        &self,
+        campaign: &CampaignConfig,
+        today: NaiveDate,
+        is_last_day: bool,
+    ) -> Result<()> {
         let job =
             BoostRewardsJob::from_campaign_config(self.config.clone(), campaign.clone(), false)?;
 
-        job.execute().await
+        // Execute the distribution
+        job.execute().await?;
+
+        // Update S3 with last_distribution_date
+        // Only update status to "completed" on the last day; otherwise keep existing status
+        let new_status = if is_last_day {
+            println!(
+                "   📝 Last day of campaign {} processed, marking as completed",
+                campaign.id
+            );
+            Some(CampaignStatus::Completed)
+        } else {
+            // None means don't change the status (preserves "active" or "paused")
+            None
+        };
+
+        self.campaign_source
+            .update_campaign(&campaign.id, Some(today), new_status)
+            .await?;
+
+        println!(
+            "   ✅ Updated campaign {} in S3: last_distribution_date = {}",
+            campaign.id, today
+        );
+
+        Ok(())
     }
 }

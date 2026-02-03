@@ -20,6 +20,8 @@ struct S3Campaign {
     start_date: String,
     end_date: String,
     status: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    last_distribution_date: Option<String>,
 }
 
 pub struct S3CampaignSource {
@@ -134,6 +136,21 @@ impl CampaignConfigSource for S3CampaignSource {
                 ));
             }
 
+            let last_distribution_date = if let Some(date_str) = &s3_campaign.last_distribution_date
+            {
+                Some(
+                    NaiveDate::parse_from_str(date_str, "%Y-%m-%d").map_err(|e| {
+                        anyhow::anyhow!(
+                            "Invalid last_distribution_date format for campaign {}: {} (expected YYYY-MM-DD)",
+                            campaign_id,
+                            e
+                        )
+                    })?,
+                )
+            } else {
+                None
+            };
+
             campaigns.push(CampaignConfig {
                 id: s3_campaign.id,
                 token_address: Address::from_str(&s3_campaign.token_address).map_err(|e| {
@@ -143,9 +160,91 @@ impl CampaignConfigSource for S3CampaignSource {
                 start_date,
                 end_date,
                 status,
+                last_distribution_date,
             });
         }
 
         Ok(campaigns)
+    }
+
+    async fn update_campaign(
+        &self,
+        campaign_id: &str,
+        last_distribution_date: Option<NaiveDate>,
+        status: Option<CampaignStatus>,
+    ) -> Result<CampaignConfig> {
+        // Get current campaigns
+        let mut campaigns = self.get_campaigns().await?;
+
+        // Find and update the campaign
+        let campaign = campaigns
+            .iter_mut()
+            .find(|c| c.id == campaign_id)
+            .ok_or_else(|| anyhow::anyhow!("Campaign not found: {}", campaign_id))?;
+
+        // Update fields
+        if let Some(date) = last_distribution_date {
+            campaign.last_distribution_date = Some(date);
+        }
+        if let Some(new_status) = status {
+            campaign.status = new_status;
+        }
+
+        // Convert back to S3 format and save
+        let s3_campaigns: Vec<S3Campaign> = campaigns
+            .iter()
+            .map(|c| S3Campaign {
+                id: c.id.clone(),
+                token_address: format!("{:#x}", c.token_address),
+                total_amount: c.total_amount,
+                start_date: c.start_date.format("%Y-%m-%d").to_string(),
+                end_date: c.end_date.format("%Y-%m-%d").to_string(),
+                status: match c.status {
+                    CampaignStatus::Active => "active".to_string(),
+                    CampaignStatus::Paused => "paused".to_string(),
+                    CampaignStatus::Completed => "completed".to_string(),
+                },
+                last_distribution_date: c
+                    .last_distribution_date
+                    .map(|d| d.format("%Y-%m-%d").to_string()),
+            })
+            .collect();
+
+        let config = S3CampaignsConfig {
+            campaigns: s3_campaigns,
+        };
+
+        // Serialize to TOML
+        let toml_content = toml::to_string_pretty(&config)
+            .map_err(|e| anyhow::anyhow!("Failed to serialize campaigns to TOML: {}", e))?;
+
+        // Upload to S3
+        self.s3_client
+            .put_object()
+            .bucket(&self.bucket)
+            .key(&self.key)
+            .body(aws_sdk_s3::primitives::ByteStream::from(
+                toml_content.into_bytes(),
+            ))
+            .content_type("text/plain")
+            .send()
+            .await
+            .map_err(|e| {
+                anyhow::anyhow!(
+                    "Failed to update S3 object at s3://{}/{}: {}\n\
+                    💡 Troubleshooting:\n\
+                    - Check AWS credentials are configured\n\
+                    - Verify IAM user/role has s3:PutObject permission",
+                    self.bucket,
+                    self.key,
+                    e
+                )
+            })?;
+
+        // Return the updated campaign
+        campaigns
+            .into_iter()
+            .find(|c| c.id == campaign_id)
+            .ok_or_else(|| anyhow::anyhow!("Campaign not found after update: {}", campaign_id))
     }
 }
