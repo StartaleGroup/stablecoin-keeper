@@ -173,7 +173,7 @@ impl BoostRewardsS3 {
         };
 
         self.campaign_source
-            .update_campaign(&campaign.id, Some(today), new_status)
+            .update_campaign_state(&campaign.id, Some(today), new_status)
             .await?;
 
         println!(

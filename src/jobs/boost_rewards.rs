@@ -16,13 +16,23 @@ use std::time::Duration;
 pub trait CampaignConfigSource: Send + Sync {
     async fn get_campaigns(&self) -> Result<Vec<CampaignConfig>>;
 
-    /// Update a campaign's last_distribution_date and optionally status
-    /// Returns the updated campaign config
-    async fn update_campaign(
+    async fn update_campaign_state(
         &self,
         campaign_id: &str,
         last_distribution_date: Option<NaiveDate>,
         status: Option<CampaignStatus>,
+    ) -> Result<CampaignConfig>;
+
+    /// Update a campaign's configuration (token_address, total_amount, start_date, end_date)
+    /// These are static configuration values
+    #[allow(dead_code)] // Part of public trait API, may be used by admin APIs or future implementations
+    async fn update_campaign_config(
+        &self,
+        campaign_id: &str,
+        token_address: Option<Address>,
+        total_amount: Option<f64>,
+        start_date: Option<NaiveDate>,
+        end_date: Option<NaiveDate>,
     ) -> Result<CampaignConfig>;
 }
 pub struct BoostRewardsJob {
@@ -441,7 +451,7 @@ impl BoostRewardsJob {
             start_date: campaign.start_date,
             end_date: campaign.end_date,
             duration_days: campaign.duration_days(),
-            campaign_id: Some(campaign.id.clone()),
+            campaign_id: Some(campaign.id),
             dry_run,
         })
     }
