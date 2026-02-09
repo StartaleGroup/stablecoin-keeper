@@ -199,66 +199,6 @@ impl CampaignConfigSource for S3CampaignSource {
             .find(|c| c.id == campaign_id)
             .ok_or_else(|| anyhow::anyhow!("Campaign not found after update: {}", campaign_id))
     }
-
-    async fn update_campaign_config(
-        &self,
-        campaign_id: &str,
-        token_address: Option<Address>,
-        total_amount: Option<f64>,
-        start_date: Option<NaiveDate>,
-        end_date: Option<NaiveDate>,
-    ) -> Result<CampaignConfig> {
-        // Get current campaigns
-        let mut campaigns = self.get_campaigns().await?;
-
-        // Find and update the campaign
-        let campaign = campaigns
-            .iter_mut()
-            .find(|c| c.id == campaign_id)
-            .ok_or_else(|| anyhow::anyhow!("Campaign not found: {}", campaign_id))?;
-
-        // Update config fields (static configuration values)
-        if let Some(addr) = token_address {
-            campaign.token_address = addr;
-        }
-        if let Some(amount) = total_amount {
-            campaign.total_amount = amount;
-        }
-        if let Some(start) = start_date {
-            campaign.start_date = start;
-        }
-        if let Some(end) = end_date {
-            campaign.end_date = end;
-        }
-
-        // Validate date range if dates were updated
-        if campaign.end_date <= campaign.start_date {
-            return Err(anyhow::anyhow!(
-                "Invalid date range for campaign {}: end_date ({}) must be after start_date ({})",
-                campaign_id,
-                campaign.end_date,
-                campaign.start_date
-            ));
-        }
-
-        // Validate total_amount if updated
-        if campaign.total_amount <= 0.0 {
-            return Err(anyhow::anyhow!(
-                "Invalid total_amount for campaign {}: must be positive, got {}",
-                campaign_id,
-                campaign.total_amount
-            ));
-        }
-
-        // Save to S3
-        self.save_campaigns_to_s3(&campaigns).await?;
-
-        // Return the updated campaign
-        campaigns
-            .into_iter()
-            .find(|c| c.id == campaign_id)
-            .ok_or_else(|| anyhow::anyhow!("Campaign not found after update: {}", campaign_id))
-    }
 }
 
 // Helper methods for S3CampaignSource (not part of the trait)

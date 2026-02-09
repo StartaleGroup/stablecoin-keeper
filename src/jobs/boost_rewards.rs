@@ -22,18 +22,6 @@ pub trait CampaignConfigSource: Send + Sync {
         last_distribution_date: Option<NaiveDate>,
         status: Option<CampaignStatus>,
     ) -> Result<CampaignConfig>;
-
-    /// Update a campaign's configuration (token_address, total_amount, start_date, end_date)
-    /// These are static configuration values
-    #[allow(dead_code)] // Part of public trait API, may be used by admin APIs or future implementations
-    async fn update_campaign_config(
-        &self,
-        campaign_id: &str,
-        token_address: Option<Address>,
-        total_amount: Option<f64>,
-        start_date: Option<NaiveDate>,
-        end_date: Option<NaiveDate>,
-    ) -> Result<CampaignConfig>;
 }
 pub struct BoostRewardsJob {
     config: ChainConfig,
