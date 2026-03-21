@@ -120,18 +120,24 @@ impl DistributeRewardsJob {
                 last_snapshot_timestamp,
                 last_snapshot_block,
                 max_age_seconds,
+                last_susdsc_tvl,
+                last_earn_tvl,
                 current_block,
                 current_timestamp,
             ) = tokio::try_join!(
                 redistributor_contract.last_snapshot_timestamp(),
                 redistributor_contract.last_snapshot_block_number(),
                 redistributor_contract.snapshot_max_age(),
+                redistributor_contract.last_susdsc_tvl(),
+                redistributor_contract.last_earn_tvl(),
                 client.get_block_number(),
                 Self::get_current_timestamp(&client),
             )?;
 
             println!("   Last snapshot timestamp: {}", last_snapshot_timestamp);
             println!("   Last snapshot block: {}", last_snapshot_block);
+            println!("   Last sUSDSC vault TVL (snapshot): {}", last_susdsc_tvl);
+            println!("   Last Earn vault TVL (snapshot): {}", last_earn_tvl);
             println!("   Max age: {}s", max_age_seconds);
             println!("   Current block: {}", current_block);
             println!("   Current timestamp: {}", current_timestamp);
@@ -174,10 +180,10 @@ impl DistributeRewardsJob {
 
             // ===== STEP 2: Take snapshot if needed =====
             if needs_snapshot {
-                println!("📸 Taking new snapshot...");
+                println!("📸 Taking new snapshot (sUSDSC + Earn vault TVLs)...");
 
                 if self.dry_run {
-                    println!("✅ DRY RUN: Would call snapshotSusdscTVL()");
+                    println!("✅ DRY RUN: Would call snapshotVaultTVLs()");
                     return Ok(());
                 }
 
@@ -185,7 +191,7 @@ impl DistributeRewardsJob {
                     || {
                         let contract = redistributor_contract.clone();
                         let value_wei = self.config.transaction.value_wei.clone();
-                        async move { contract.snapshot_susdsc_tvl(&value_wei).await }
+                        async move { contract.snapshot_vault_tvls(&value_wei).await }
                     },
                     &retry_config,
                     "Snapshot transaction",
@@ -212,7 +218,13 @@ impl DistributeRewardsJob {
                         // Verify snapshot was recorded
                         let new_snapshot_block =
                             redistributor_contract.last_snapshot_block_number().await?;
+                        let (new_susdsc, new_earn) = tokio::try_join!(
+                            redistributor_contract.last_susdsc_tvl(),
+                            redistributor_contract.last_earn_tvl(),
+                        )?;
                         println!("📸 New snapshot block: {}", new_snapshot_block);
+                        println!("📸 New sUSDSC vault TVL: {}", new_susdsc);
+                        println!("📸 New Earn vault TVL: {}", new_earn);
 
                         // Mark that we need to wait for next block after snapshot
                         needs_block_wait = true;
