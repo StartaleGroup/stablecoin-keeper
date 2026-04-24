@@ -19,13 +19,6 @@ impl DistributeRewardsJob {
         Self { config, dry_run }
     }
 
-    fn priority_fee_wei(&self) -> Option<u128> {
-        self.config
-            .transaction
-            .max_priority_fee_gwei
-            .map(|gwei| (gwei * 1_000_000_000.0) as u128)
-    }
-
     async fn wait_for_next_block(client: &BlockchainClient) -> Result<()> {
         let initial_block = client.get_block_number().await?;
         println!("⏳ Waiting for next block (current: {})...", initial_block);
@@ -182,7 +175,6 @@ impl DistributeRewardsJob {
                     }
                 };
 
-            let priority_fee = self.priority_fee_wei();
             let timeout_gas_used = U256::from_str(&self.config.monitoring.timeout_gas_used)?;
             let monitor = TransactionMonitor::new_with_timeout_values(
                 client.provider(),
@@ -207,13 +199,7 @@ impl DistributeRewardsJob {
                         let value_wei = self.config.transaction.value_wei.clone();
                         async move {
                             contract
-                                .snapshot_vault_tvls(
-                                    &value_wei,
-                                    TxOverrides {
-                                        max_priority_fee_per_gas: priority_fee,
-                                        ..Default::default()
-                                    },
-                                )
+                                .snapshot_vault_tvls(&value_wei, TxOverrides::default())
                                 .await
                         }
                     },
@@ -257,9 +243,7 @@ impl DistributeRewardsJob {
                 println!("   To sUSDSC: {}", preview.3);
                 println!("   To Startale Treasury: {}", preview.4);
 
-                // ===== STEP 4: Distribute — submitted immediately, targets next block =====
-                // Snapshot confirmed in block N; submitting now puts distribute in block N+1
-                // mempool. Priority fee ensures it's picked up without delay.
+                // ===== STEP 4: Distribute — submitted immediately after snapshot confirms =====
                 println!("🚀 Distributing immediately after snapshot (targeting next block)...");
 
                 let dist_tx = execute_with_retry(
@@ -268,13 +252,7 @@ impl DistributeRewardsJob {
                         let value_wei = self.config.transaction.value_wei.clone();
                         async move {
                             contract
-                                .distribute(
-                                    &value_wei,
-                                    TxOverrides {
-                                        max_priority_fee_per_gas: priority_fee,
-                                        ..Default::default()
-                                    },
-                                )
+                                .distribute(&value_wei, TxOverrides::default())
                                 .await
                         }
                     },
@@ -332,13 +310,7 @@ impl DistributeRewardsJob {
                         let value_wei = self.config.transaction.value_wei.clone();
                         async move {
                             contract
-                                .distribute(
-                                    &value_wei,
-                                    TxOverrides {
-                                        max_priority_fee_per_gas: priority_fee,
-                                        ..Default::default()
-                                    },
-                                )
+                                .distribute(&value_wei, TxOverrides::default())
                                 .await
                         }
                     },
