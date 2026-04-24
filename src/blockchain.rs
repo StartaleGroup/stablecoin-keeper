@@ -66,6 +66,20 @@ impl BlockchainClient {
         Ok(block_number)
     }
 
+    pub async fn get_base_fee_per_gas(&self) -> Result<u128> {
+        use alloy::eips::BlockNumberOrTag;
+        let block = self
+            .provider
+            .get_block_by_number(BlockNumberOrTag::Latest)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("Latest block not found"))?;
+        let base_fee = block
+            .header
+            .base_fee_per_gas
+            .ok_or_else(|| anyhow::anyhow!("No baseFeePerGas (pre-EIP-1559 chain)"))?;
+        Ok(base_fee as u128)
+    }
+
     pub fn parse_address(addr: &str) -> Result<Address> {
         Address::from_str(addr).map_err(|e| anyhow::anyhow!("Invalid address {}: {}", addr, e))
     }

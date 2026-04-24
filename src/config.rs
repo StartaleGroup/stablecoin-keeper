@@ -65,6 +65,7 @@ pub struct MonitoringSettings {
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct TransactionSettings {
     pub value_wei: String,
+    pub max_priority_fee_gwei: Option<f64>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]

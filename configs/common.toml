@@ -15,6 +15,7 @@ timeout_gas_used = "0"
 
 [transaction]
 value_wei = "0"
+max_priority_fee_gwei = 0.1
 
 [kms]
 key_id = "${KMS_KEY_ID}"
