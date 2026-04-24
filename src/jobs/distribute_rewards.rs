@@ -19,6 +19,25 @@ impl DistributeRewardsJob {
         Self { config, dry_run }
     }
 
+    fn priority_fee_wei(&self) -> Option<u128> {
+        self.config
+            .transaction
+            .max_priority_fee_gwei
+            .map(|gwei| (gwei * 1_000_000_000.0) as u128)
+    }
+
+    fn build_tx_overrides(&self, base_fee: u128) -> TxOverrides {
+        match self.priority_fee_wei() {
+            Some(tip) => TxOverrides {
+                max_priority_fee_per_gas: Some(tip),
+                // baseFee * 2 gives headroom for fee fluctuation across blocks
+                max_fee_per_gas: Some(base_fee * 2 + tip),
+                ..Default::default()
+            },
+            None => TxOverrides::default(),
+        }
+    }
+
     async fn wait_for_next_block(client: &BlockchainClient) -> Result<()> {
         let initial_block = client.get_block_number().await?;
         println!("⏳ Waiting for next block (current: {})...", initial_block);
@@ -124,6 +143,7 @@ impl DistributeRewardsJob {
                 last_earn_tvl,
                 current_block,
                 current_timestamp,
+                base_fee,
             ) = tokio::try_join!(
                 redistributor_contract.last_snapshot_timestamp(),
                 redistributor_contract.last_snapshot_block_number(),
@@ -132,6 +152,7 @@ impl DistributeRewardsJob {
                 redistributor_contract.last_earn_tvl(),
                 client.get_block_number(),
                 Self::get_current_timestamp(&client),
+                client.get_base_fee_per_gas(),
             )?;
 
             println!("   Last snapshot timestamp: {}", last_snapshot_timestamp);
@@ -193,15 +214,13 @@ impl DistributeRewardsJob {
                     return Ok(());
                 }
 
+                let snapshot_overrides = self.build_tx_overrides(base_fee);
                 let snapshot_tx = execute_with_retry(
                     || {
                         let contract = redistributor_contract.clone();
                         let value_wei = self.config.transaction.value_wei.clone();
-                        async move {
-                            contract
-                                .snapshot_vault_tvls(&value_wei, TxOverrides::default())
-                                .await
-                        }
+                        let overrides = snapshot_overrides.clone();
+                        async move { contract.snapshot_vault_tvls(&value_wei, overrides).await }
                     },
                     &retry_config,
                     "Snapshot transaction",
@@ -246,15 +265,15 @@ impl DistributeRewardsJob {
                 // ===== STEP 4: Distribute — submitted immediately after snapshot confirms =====
                 println!("🚀 Distributing immediately after snapshot (targeting next block)...");
 
+                let dist_base_fee = client.get_base_fee_per_gas().await?;
+                let dist_overrides = self.build_tx_overrides(dist_base_fee);
+
                 let dist_tx = execute_with_retry(
                     || {
                         let contract = redistributor_contract.clone();
                         let value_wei = self.config.transaction.value_wei.clone();
-                        async move {
-                            contract
-                                .distribute(&value_wei, TxOverrides::default())
-                                .await
-                        }
+                        let overrides = dist_overrides.clone();
+                        async move { contract.distribute(&value_wei, overrides).await }
                     },
                     &retry_config,
                     "Distribute transaction",
@@ -304,15 +323,15 @@ impl DistributeRewardsJob {
 
                 // ===== STEP 4: Distribute =====
                 println!("🚀 Calling distribute() on RewardRedistributor...");
+                let dist_base_fee = client.get_base_fee_per_gas().await?;
+                let dist_overrides = self.build_tx_overrides(dist_base_fee);
+
                 let dist_tx = execute_with_retry(
                     || {
                         let contract = redistributor_contract.clone();
                         let value_wei = self.config.transaction.value_wei.clone();
-                        async move {
-                            contract
-                                .distribute(&value_wei, TxOverrides::default())
-                                .await
-                        }
+                        let overrides = dist_overrides.clone();
+                        async move { contract.distribute(&value_wei, overrides).await }
                     },
                     &retry_config,
                     "Distribute transaction",

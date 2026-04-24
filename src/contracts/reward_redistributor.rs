@@ -9,9 +9,11 @@ use anyhow::Result;
 use std::str::FromStr;
 use std::sync::Arc;
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct TxOverrides {
     pub nonce: Option<u64>,
+    pub max_priority_fee_per_gas: Option<u128>,
+    pub max_fee_per_gas: Option<u128>,
 }
 
 sol! {
@@ -99,6 +101,8 @@ impl RewardRedistributorContract {
             input: TransactionInput::new(data.into()),
             value: Some(tx_value),
             nonce: overrides.nonce,
+            max_priority_fee_per_gas: overrides.max_priority_fee_per_gas,
+            max_fee_per_gas: overrides.max_fee_per_gas,
             ..Default::default()
         };
 
@@ -122,6 +126,8 @@ impl RewardRedistributorContract {
             input: TransactionInput::new(data.into()),
             value: Some(tx_value),
             nonce: overrides.nonce,
+            max_priority_fee_per_gas: overrides.max_priority_fee_per_gas,
+            max_fee_per_gas: overrides.max_fee_per_gas,
             ..Default::default()
         };
 
