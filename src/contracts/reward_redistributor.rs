@@ -9,6 +9,12 @@ use anyhow::Result;
 use std::str::FromStr;
 use std::sync::Arc;
 
+#[derive(Default)]
+pub struct TxOverrides {
+    pub nonce: Option<u64>,
+    pub max_priority_fee_per_gas: Option<u128>,
+}
+
 sol! {
     #[sol(rpc)]
     interface IRewardRedistributor {
@@ -83,7 +89,7 @@ impl RewardRedistributorContract {
     }
 
     // Distribute functions
-    pub async fn distribute(&self, value_wei: &str) -> Result<B256> {
+    pub async fn distribute(&self, value_wei: &str, overrides: TxOverrides) -> Result<B256> {
         let call = IRewardRedistributor::distributeCall {};
         let data: Vec<u8> = call.abi_encode();
 
@@ -93,16 +99,17 @@ impl RewardRedistributorContract {
             to: Some(TxKind::Call(self.address)),
             input: TransactionInput::new(data.into()),
             value: Some(tx_value),
+            nonce: overrides.nonce,
+            max_priority_fee_per_gas: overrides.max_priority_fee_per_gas,
             ..Default::default()
         };
 
-        // Use the unified transaction sending (works for both private key and KMS)
         let tx_hash = self.client.send_transaction(tx).await?;
         Ok(tx_hash)
     }
 
     // Snapshot: captures sUSDSC vault TVL and EarnVault totalPrincipal for distribution split
-    pub async fn snapshot_vault_tvls(&self, value_wei: &str) -> Result<B256> {
+    pub async fn snapshot_vault_tvls(&self, value_wei: &str, overrides: TxOverrides) -> Result<B256> {
         let call = IRewardRedistributor::snapshotVaultTVLsCall {};
         let data: Vec<u8> = call.abi_encode();
 
@@ -112,6 +119,8 @@ impl RewardRedistributorContract {
             to: Some(TxKind::Call(self.address)),
             input: TransactionInput::new(data.into()),
             value: Some(tx_value),
+            nonce: overrides.nonce,
+            max_priority_fee_per_gas: overrides.max_priority_fee_per_gas,
             ..Default::default()
         };
 

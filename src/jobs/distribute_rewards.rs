@@ -1,6 +1,6 @@
 use crate::blockchain::BlockchainClient;
 use crate::config::ChainConfig;
-use crate::contracts::reward_redistributor::RewardRedistributorContract;
+use crate::contracts::reward_redistributor::{RewardRedistributorContract, TxOverrides};
 use crate::contracts::usdsc::USDSCContract;
 use crate::retry::{execute_with_retry, RetryConfig};
 use crate::transaction_monitor::{TransactionMonitor, TransactionStatus};
@@ -17,6 +17,13 @@ pub struct DistributeRewardsJob {
 impl DistributeRewardsJob {
     pub fn new(config: ChainConfig, dry_run: bool) -> Self {
         Self { config, dry_run }
+    }
+
+    fn priority_fee_wei(&self) -> Option<u128> {
+        self.config
+            .transaction
+            .max_priority_fee_gwei
+            .map(|gwei| (gwei * 1_000_000_000.0) as u128)
     }
 
     async fn wait_for_next_block(client: &BlockchainClient) -> Result<()> {
@@ -175,8 +182,15 @@ impl DistributeRewardsJob {
                     }
                 };
 
-            // Track if we need to wait for a block (either after snapshot or if snapshot is in same block)
-            let mut needs_block_wait = false;
+            let priority_fee = self.priority_fee_wei();
+            let timeout_gas_used = U256::from_str(&self.config.monitoring.timeout_gas_used)?;
+            let monitor = TransactionMonitor::new_with_timeout_values(
+                client.provider(),
+                Duration::from_secs(self.config.monitoring.transaction_timeout_seconds),
+                Duration::from_secs(self.config.monitoring.poll_interval_seconds),
+                self.config.monitoring.timeout_block_number,
+                timeout_gas_used,
+            );
 
             // ===== STEP 2: Take snapshot if needed =====
             if needs_snapshot {
@@ -191,7 +205,14 @@ impl DistributeRewardsJob {
                     || {
                         let contract = redistributor_contract.clone();
                         let value_wei = self.config.transaction.value_wei.clone();
-                        async move { contract.snapshot_vault_tvls(&value_wei).await }
+                        async move {
+                            contract
+                                .snapshot_vault_tvls(&value_wei, TxOverrides {
+                                    max_priority_fee_per_gas: priority_fee,
+                                    ..Default::default()
+                                })
+                                .await
+                        }
                     },
                     &retry_config,
                     "Snapshot transaction",
@@ -200,34 +221,17 @@ impl DistributeRewardsJob {
 
                 println!("✅ Snapshot transaction sent: {:?}", snapshot_tx);
 
-                // Monitor snapshot transaction
-                let timeout_gas_used = U256::from_str(&self.config.monitoring.timeout_gas_used)?;
-                let monitor = TransactionMonitor::new_with_timeout_values(
-                    client.provider(),
-                    Duration::from_secs(self.config.monitoring.transaction_timeout_seconds),
-                    Duration::from_secs(self.config.monitoring.poll_interval_seconds),
-                    self.config.monitoring.timeout_block_number,
-                    timeout_gas_used,
-                );
-
-                let receipt = monitor.monitor_transaction(snapshot_tx).await?;
-                match receipt.status {
+                let snapshot_receipt = monitor.monitor_transaction(snapshot_tx).await?;
+                match snapshot_receipt.status {
                     TransactionStatus::Success => {
-                        println!("🎉 Snapshot confirmed in block {}", receipt.block_number);
+                        println!("🎉 Snapshot confirmed in block {}", snapshot_receipt.block_number);
 
-                        // Verify snapshot was recorded
-                        let new_snapshot_block =
-                            redistributor_contract.last_snapshot_block_number().await?;
                         let (new_susdsc, new_earn) = tokio::try_join!(
                             redistributor_contract.last_susdsc_tvl(),
                             redistributor_contract.last_earn_tvl(),
                         )?;
-                        println!("📸 New snapshot block: {}", new_snapshot_block);
                         println!("📸 New sUSDSC vault TVL: {}", new_susdsc);
                         println!("📸 New Earn vault TVL: {}", new_earn);
-
-                        // Mark that we need to wait for next block after snapshot
-                        needs_block_wait = true;
                     }
                     TransactionStatus::Failed => {
                         return Err(anyhow::anyhow!("Snapshot transaction failed"));
@@ -236,74 +240,121 @@ impl DistributeRewardsJob {
                         return Err(anyhow::anyhow!("Snapshot transaction monitoring timeout"));
                     }
                 }
+
+                // ===== STEP 3: Preview =====
+                println!("📊 Previewing distribution...");
+                let preview = redistributor_contract.preview_distribute().await?;
+                println!("📊 Distribution preview:");
+                println!("   Could be minted: {}", preview.0);
+                println!("   Fee to Startale: {}", preview.1);
+                println!("   To Earn: {}", preview.2);
+                println!("   To sUSDSC: {}", preview.3);
+                println!("   To Startale Treasury: {}", preview.4);
+
+                // ===== STEP 4: Distribute — submitted immediately, targets next block =====
+                // Snapshot confirmed in block N; submitting now puts distribute in block N+1
+                // mempool. Priority fee ensures it's picked up without delay.
+                println!("🚀 Distributing immediately after snapshot (targeting next block)...");
+
+                let dist_tx = execute_with_retry(
+                    || {
+                        let contract = redistributor_contract.clone();
+                        let value_wei = self.config.transaction.value_wei.clone();
+                        async move {
+                            contract
+                                .distribute(&value_wei, TxOverrides {
+                                    max_priority_fee_per_gas: priority_fee,
+                                    ..Default::default()
+                                })
+                                .await
+                        }
+                    },
+                    &retry_config,
+                    "Distribute transaction",
+                )
+                .await?;
+
+                println!("✅ Distribute transaction sent: {:?}", dist_tx);
+
+                let dist_receipt = monitor.monitor_transaction(dist_tx).await?;
+                match dist_receipt.status {
+                    TransactionStatus::Success => {
+                        let block_delta =
+                            dist_receipt.block_number - snapshot_receipt.block_number;
+                        println!(
+                            "🎉 Distribute confirmed in block {} ({} block(s) after snapshot)",
+                            dist_receipt.block_number, block_delta
+                        );
+                        println!("⛽ Gas used: {}", dist_receipt.gas_used);
+                    }
+                    TransactionStatus::Failed => {
+                        return Err(anyhow::anyhow!("Distribute transaction failed"));
+                    }
+                    TransactionStatus::Timeout => {
+                        return Err(anyhow::anyhow!("Distribute transaction monitoring timeout"));
+                    }
+                }
             } else {
-                // Check if snapshot is in same block (we already checked this above, but need to set flag)
+                // Snapshot is valid — wait only if we're in the same block as the snapshot
                 if current_block_u256 <= last_snapshot_block {
-                    needs_block_wait = true;
+                    println!("⏳ Waiting for next block before distributing...");
+                    Self::wait_for_next_block(&client).await?;
                 }
-            }
 
-            // Wait for next block if needed (after snapshot or if snapshot was in same block)
-            if needs_block_wait {
-                println!("⏳ Waiting for next block before distributing...");
-                Self::wait_for_next_block(&client).await?;
-            }
+                // ===== STEP 3: Preview =====
+                println!("📊 Previewing distribution...");
+                let preview = redistributor_contract.preview_distribute().await?;
+                println!("📊 Distribution preview:");
+                println!("   Could be minted: {}", preview.0);
+                println!("   Fee to Startale: {}", preview.1);
+                println!("   To Earn: {}", preview.2);
+                println!("   To sUSDSC: {}", preview.3);
+                println!("   To Startale Treasury: {}", preview.4);
 
-            // ===== STEP 4: Preview distribution =====
-            println!("📊 Previewing distribution...");
-            let preview = redistributor_contract.preview_distribute().await?;
-            println!("📊 Distribution preview:");
-            println!("   Could be minted: {}", preview.0);
-            println!("   Fee to Startale: {}", preview.1);
-            println!("   To Earn: {}", preview.2);
-            println!("   To sUSDSC: {}", preview.3);
-            println!("   To Startale Treasury: {}", preview.4);
-
-            if self.dry_run {
-                println!("✅ DRY RUN: Would call distribute() on RewardRedistributor");
-                return Ok(());
-            }
-
-            // ===== STEP 6: Execute distribute transaction =====
-            println!("🚀 Calling distribute() on RewardRedistributor...");
-            let tx_hash = execute_with_retry(
-                || {
-                    let contract = redistributor_contract.clone();
-                    let value_wei = self.config.transaction.value_wei.clone();
-                    async move { contract.distribute(&value_wei).await }
-                },
-                &retry_config,
-                "Distribute transaction",
-            )
-            .await?;
-            println!("✅ Distribute transaction sent: {:?}", tx_hash);
-
-            // Monitor transaction until confirmation
-            let timeout_gas_used = U256::from_str(&self.config.monitoring.timeout_gas_used)?;
-            let monitor = TransactionMonitor::new_with_timeout_values(
-                client.provider(),
-                Duration::from_secs(self.config.monitoring.transaction_timeout_seconds),
-                Duration::from_secs(self.config.monitoring.poll_interval_seconds),
-                self.config.monitoring.timeout_block_number,
-                timeout_gas_used,
-            );
-
-            let receipt = monitor.monitor_transaction(tx_hash).await?;
-            match receipt.status {
-                TransactionStatus::Success => {
-                    println!(
-                        "🎉 Distribute transaction confirmed in block {}",
-                        receipt.block_number
-                    );
-                    println!("⛽ Gas used: {}", receipt.gas_used);
+                if self.dry_run {
+                    println!("✅ DRY RUN: Would call distribute() on RewardRedistributor");
+                    return Ok(());
                 }
-                TransactionStatus::Failed => {
-                    println!("❌ Distribute transaction failed");
-                    return Err(anyhow::anyhow!("Transaction failed"));
-                }
-                TransactionStatus::Timeout => {
-                    println!("⏰ Distribute transaction monitoring timeout");
-                    return Err(anyhow::anyhow!("Transaction monitoring timeout"));
+
+                // ===== STEP 4: Distribute =====
+                println!("🚀 Calling distribute() on RewardRedistributor...");
+                let dist_tx = execute_with_retry(
+                    || {
+                        let contract = redistributor_contract.clone();
+                        let value_wei = self.config.transaction.value_wei.clone();
+                        async move {
+                            contract
+                                .distribute(&value_wei, TxOverrides {
+                                    max_priority_fee_per_gas: priority_fee,
+                                    ..Default::default()
+                                })
+                                .await
+                        }
+                    },
+                    &retry_config,
+                    "Distribute transaction",
+                )
+                .await?;
+
+                println!("✅ Distribute transaction sent: {:?}", dist_tx);
+
+                let dist_receipt = monitor.monitor_transaction(dist_tx).await?;
+                match dist_receipt.status {
+                    TransactionStatus::Success => {
+                        println!(
+                            "🎉 Distribute confirmed in block {}",
+                            dist_receipt.block_number
+                        );
+                        println!("⛽ Gas used: {}", dist_receipt.gas_used);
+                    }
+                    TransactionStatus::Failed => {
+                        println!("❌ Distribute transaction failed");
+                        return Err(anyhow::anyhow!("Transaction failed"));
+                    }
+                    TransactionStatus::Timeout => {
+                        println!("⏰ Distribute transaction monitoring timeout");
+                        return Err(anyhow::anyhow!("Transaction monitoring timeout"));
+                    }
                 }
             }
         } else {
