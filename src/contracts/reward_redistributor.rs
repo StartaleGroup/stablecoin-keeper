@@ -109,7 +109,11 @@ impl RewardRedistributorContract {
     }
 
     // Snapshot: captures sUSDSC vault TVL and EarnVault totalPrincipal for distribution split
-    pub async fn snapshot_vault_tvls(&self, value_wei: &str, overrides: TxOverrides) -> Result<B256> {
+    pub async fn snapshot_vault_tvls(
+        &self,
+        value_wei: &str,
+        overrides: TxOverrides,
+    ) -> Result<B256> {
         let call = IRewardRedistributor::snapshotVaultTVLsCall {};
         let data: Vec<u8> = call.abi_encode();
 

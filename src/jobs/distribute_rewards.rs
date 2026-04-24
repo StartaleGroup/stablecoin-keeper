@@ -207,10 +207,13 @@ impl DistributeRewardsJob {
                         let value_wei = self.config.transaction.value_wei.clone();
                         async move {
                             contract
-                                .snapshot_vault_tvls(&value_wei, TxOverrides {
-                                    max_priority_fee_per_gas: priority_fee,
-                                    ..Default::default()
-                                })
+                                .snapshot_vault_tvls(
+                                    &value_wei,
+                                    TxOverrides {
+                                        max_priority_fee_per_gas: priority_fee,
+                                        ..Default::default()
+                                    },
+                                )
                                 .await
                         }
                     },
@@ -224,7 +227,10 @@ impl DistributeRewardsJob {
                 let snapshot_receipt = monitor.monitor_transaction(snapshot_tx).await?;
                 match snapshot_receipt.status {
                     TransactionStatus::Success => {
-                        println!("🎉 Snapshot confirmed in block {}", snapshot_receipt.block_number);
+                        println!(
+                            "🎉 Snapshot confirmed in block {}",
+                            snapshot_receipt.block_number
+                        );
 
                         let (new_susdsc, new_earn) = tokio::try_join!(
                             redistributor_contract.last_susdsc_tvl(),
@@ -262,10 +268,13 @@ impl DistributeRewardsJob {
                         let value_wei = self.config.transaction.value_wei.clone();
                         async move {
                             contract
-                                .distribute(&value_wei, TxOverrides {
-                                    max_priority_fee_per_gas: priority_fee,
-                                    ..Default::default()
-                                })
+                                .distribute(
+                                    &value_wei,
+                                    TxOverrides {
+                                        max_priority_fee_per_gas: priority_fee,
+                                        ..Default::default()
+                                    },
+                                )
                                 .await
                         }
                     },
@@ -279,8 +288,7 @@ impl DistributeRewardsJob {
                 let dist_receipt = monitor.monitor_transaction(dist_tx).await?;
                 match dist_receipt.status {
                     TransactionStatus::Success => {
-                        let block_delta =
-                            dist_receipt.block_number - snapshot_receipt.block_number;
+                        let block_delta = dist_receipt.block_number - snapshot_receipt.block_number;
                         println!(
                             "🎉 Distribute confirmed in block {} ({} block(s) after snapshot)",
                             dist_receipt.block_number, block_delta
@@ -324,10 +332,13 @@ impl DistributeRewardsJob {
                         let value_wei = self.config.transaction.value_wei.clone();
                         async move {
                             contract
-                                .distribute(&value_wei, TxOverrides {
-                                    max_priority_fee_per_gas: priority_fee,
-                                    ..Default::default()
-                                })
+                                .distribute(
+                                    &value_wei,
+                                    TxOverrides {
+                                        max_priority_fee_per_gas: priority_fee,
+                                        ..Default::default()
+                                    },
+                                )
                                 .await
                         }
                     },
