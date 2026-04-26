@@ -180,7 +180,12 @@ async fn main() -> Result<()> {
                 .or_else(|| std::env::var("S3_REGION").ok())
                 .or_else(|| std::env::var("AWS_REGION").ok())
                 .or_else(|| chain_config.kms.as_ref().and_then(|kms| kms.region.clone()))
-                .unwrap();
+                .ok_or_else(|| {
+                    anyhow::anyhow!(
+                        "S3 region not set. Pass --s3-region, or set S3_REGION / AWS_REGION, \
+                         or configure KMS region in the config (used as fallback for S3)"
+                    )
+                })?;
 
             // Parse S3 path (supports both s3://bucket/key and bucket/key)
             let (bucket, key) = if campaigns_s3.starts_with("s3://") {

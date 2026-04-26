@@ -82,7 +82,9 @@ impl BoostRewardsS3 {
         // Sort campaigns by start date (earliest first)
         active_campaigns.sort_by_key(|x| x.start_date);
 
-        // Process each campaign sequentially
+        // Process each campaign sequentially; track failures so the job exits non-zero
+        // (alerts, k8s job status, CI) if any campaign did not complete.
+        let mut failures: Vec<String> = Vec::new();
         for (index, campaign) in active_campaigns.iter().enumerate() {
             // Add delay before processing (except for the first campaign)
             if index > 0 {
@@ -103,9 +105,19 @@ impl BoostRewardsS3 {
                 Ok(_) => println!("   ✅ Campaign {} completed successfully", campaign.id),
                 Err(e) => {
                     eprintln!("   ❌ Campaign {} failed: {}", campaign.id, e);
-                    // Continue with next campaign
+                    failures.push(format!("{}: {}", campaign.id, e));
                 }
             }
+        }
+
+        if !failures.is_empty() {
+            return Err(anyhow::anyhow!(
+                "{} of {} campaign(s) failed for {}: {}",
+                failures.len(),
+                active_campaigns.len(),
+                today,
+                failures.join(" | ")
+            ));
         }
 
         Ok(())
