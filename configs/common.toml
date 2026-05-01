@@ -9,7 +9,7 @@ backoff_multiplier = 2.0
 
 [monitoring]
 transaction_timeout_seconds = 300
-poll_interval_seconds = 5
+poll_interval_seconds = 2
 timeout_block_number = 0
 timeout_gas_used = "0"
 
