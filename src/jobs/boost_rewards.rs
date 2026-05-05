@@ -11,10 +11,17 @@ use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 
-// Trait for getting campaigns (abstraction layer)
+// Trait for getting and updating campaigns (abstraction layer)
 #[async_trait::async_trait]
 pub trait CampaignConfigSource: Send + Sync {
     async fn get_campaigns(&self) -> Result<Vec<CampaignConfig>>;
+
+    async fn update_campaign_state(
+        &self,
+        campaign_id: &str,
+        last_distribution_date: Option<NaiveDate>,
+        status: Option<CampaignStatus>,
+    ) -> Result<CampaignConfig>;
 }
 pub struct BoostRewardsJob {
     config: ChainConfig,
@@ -35,6 +42,7 @@ pub struct CampaignConfig {
     pub start_date: NaiveDate,
     pub end_date: NaiveDate,
     pub status: CampaignStatus,
+    pub last_distribution_date: Option<NaiveDate>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
